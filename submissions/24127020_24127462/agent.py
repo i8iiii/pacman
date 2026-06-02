@@ -10,15 +10,18 @@ from environment import Move
 import numpy as np
 import random
 import heapq
+from collections import deque
 
 class PacmanAgent(BasePacmanAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "HomeLander"
         self.pacman_speed = max(1, int(kwargs.get('pacman_speed', 1)))
-        self.last_known_enemy_pos = kwargs.get('initial_enemy_position', None)
+        self.last_known_enemy_pos = None
+        self.visit_count = {}
+        self.recent_positions = deque(maxlen=8)
 
-    def manhattan_distance(self, pos1: tuple, pos2: tuple) -> int:
+    def manhattan_distance(self, pos1: tuple, pos2: tuple) -> float:
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
 
     def astar(self, start: tuple, goal: tuple, map_state: np.ndarray):
@@ -36,7 +39,8 @@ class PacmanAgent(BasePacmanAgent):
                 return self.reconstruct_path(came_from, current)
 
             for neighbor in self.get_neighbors(current, map_state):
-                tentative_g_score = g_score[current] + 1
+                neighbor_cost = 1 + self._visit_penalty(neighbor)
+                tentative_g_score = g_score[current] + neighbor_cost
 
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
@@ -99,10 +103,21 @@ class PacmanAgent(BasePacmanAgent):
                 break
 
         return steps
+    
+    def _visit_penalty(self, pos: tuple):
+        penalty = self.visit_count.get(pos, 0) * 0.5
+
+        if pos in self.recent_positions:
+            penalty += 3
+
+        return penalty
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int):
         if enemy_position is not None:
             self.last_known_enemy_pos = enemy_position
+
+        self.visit_count[my_position] = self.visit_count.get(my_position, 0) + 1
+        self.recent_positions.append(my_position)
 
         target = enemy_position or self.last_known_enemy_pos
         
@@ -111,7 +126,7 @@ class PacmanAgent(BasePacmanAgent):
 
         path = self.astar(my_position, target, map_state)
         if path is None or len(path) < 2:
-            return (Move.STAY, 1)
+            return self._explore(my_position, map_state)
 
         next_pos = path[1]
         next_move = self.move_from_positions(my_position, next_pos)
@@ -169,7 +184,7 @@ class GhostAgent(BaseGhostAgent):
         # TODO: Initialize any data structures you need
         # Memory for limited observation mode
         self.name = "A-Train"
-        self.last_known_enemy_pos = kwargs.get('initial_enemy_position', None)
+        self.last_known_enemy_pos = None
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
         if enemy_position is not None:
@@ -263,8 +278,8 @@ class GhostAgent(BaseGhostAgent):
         if len(path) == 2:
             return path[1]
         
-        first_move = self._translate_move(path[0], path[1]);
-        second_move = self._translate_move(path[1], path[2]);
+        first_move = self._translate_move(path[0], path[1])
+        second_move = self._translate_move(path[1], path[2])
 
         if first_move == second_move: # Same move - Straight = Move two cells
             return path[2]
@@ -311,7 +326,7 @@ class GhostAgent(BaseGhostAgent):
     def _calc_path_distance(self, map_state: np.ndarray, start: tuple, des: tuple) -> int:
         path = self.bfs(map_state, start, des)
         if not path:
-            return 999999  # Unreachable
+            return 99999999  # Unreachable
         return len(path) - 1    # Number of steps, not cells
 
     def _translate_move(self, start: tuple, des: tuple) -> Move:
