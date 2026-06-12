@@ -18,8 +18,9 @@ class PacmanAgent(BasePacmanAgent):
         self.name = "HomeLander"
         self.pacman_speed = max(1, int(kwargs.get('pacman_speed', 1)))
         self.last_known_enemy_pos = None
-        self.visit_count = {}
-        self.recent_positions = deque(maxlen=8)
+        self._minimax_cache = {}
+        self._eval_cache = {}
+        self._dist_cache = {}
 
     def _normalize_pos(self, pos: tuple) -> tuple:
         return (int(pos[0]), int(pos[1]))
@@ -30,18 +31,11 @@ class PacmanAgent(BasePacmanAgent):
     def _capture_goals(self, enemy_pos: tuple, map_state: np.ndarray) -> list:
         goals = []
         for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+            goals.append(enemy_pos)
             next_pos = (enemy_pos[0] + move.value[0], enemy_pos[1] + move.value[1])
             if self._is_valid_position(next_pos, map_state):
                 goals.append(next_pos)
         return goals
-    
-    def _predict_enemy_hide_pos(self, map_state: np.ndarray, my_pos: tuple, enemy_pos: tuple):
-        potential_hides = []
-        for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-            next_pos = (enemy_pos[0] + move.value[0], enemy_pos[1] + move.value[1])
-            if self._is_valid_position(next_pos, map_state) and not self._is_catch_position(my_pos, next_pos):
-                potential_hides.append(next_pos)
-        return potential_hides
 
     def manhattan_distance(self, pos1: tuple, pos2: tuple) -> float:
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
@@ -65,7 +59,7 @@ class PacmanAgent(BasePacmanAgent):
                 continue
             closed_set.add(current)
 
-            if current in goals:
+            if current in all_goals:
                 return self.reconstruct_path(came_from, current)
 
             for neighbor in self.get_neighbors(current, map_state):
@@ -135,18 +129,33 @@ class PacmanAgent(BasePacmanAgent):
 
         return steps
     
-    # def _visit_penalty(self, pos: tuple):
-    #     penalty = self.visit_count.get(pos, 0) * 2
+    def seek_turn_distance(self, start: tuple, enemy_pos: tuple, map_state: np.ndarray) -> int:
+        goals = self._capture_goals(enemy_pos, map_state)
 
-    #     if pos in self.recent_positions:
-    #         penalty += 10
+        visited = set()
+        queue = deque([(start, 0)])  # (current_pos, distance)
 
-    #     return penalty
+        while queue:
+            current, distance = queue.popleft()
+
+            if current in visited:
+                continue
+            visited.add(current)
+
+            if current in goals:
+                return distance
+
+            for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+                next_pos = (current[0] + move.value[0], current[1] + move.value[1])
+                if next_pos not in visited and self._is_valid_position(next_pos, map_state):
+                    queue.append((next_pos, distance + 1))
+
+        return 99999999  # Unreachable
 
     def _get_seek_action(self, seek_pos: tuple, map_state: np.ndarray):
         actions = []
         for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-            for step in range(1, self.pacman_speed + 1):
+            for step in range(1, self._max_valid_steps(seek_pos, move, map_state, self.pacman_speed) + 1):
                 next_pos = (
                     seek_pos[0] + move.value[0] * step,
                     seek_pos[1] + move.value[1] * step
@@ -172,51 +181,139 @@ class PacmanAgent(BasePacmanAgent):
 
         return actions
 
-    def _apply_seek_action(self):
-        pass
+    def _apply_seek_action(self, seek_pos: tuple, action: tuple, map_state: np.ndarray):
+        move, steps = action
 
-    def _apply_hide_action(self):
-        pass
+        if steps == 0:
+            return seek_pos
+
+        new_pos = (seek_pos[0] + move.value[0] * steps, seek_pos[1] + move.value[1] * steps)
+
+        return new_pos
+
+
+    def _apply_hide_action(self, hide_pos: tuple, action: tuple, map_state: np.ndarray):
+        move, steps = action
+
+        if steps == 0:
+            return hide_pos
+
+        new_pos = (hide_pos[0] + move.value[0] * steps, hide_pos[1] + move.value[1] * steps)
+        if not self._is_valid_position(new_pos, map_state):
+            return hide_pos
+
+        return new_pos
 
     def _evaluate_state(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray):
-        pass
-    
-    def _minimax_value(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray, depth: int, maximizing_player: bool):
-        pass
+        if self._is_catch_position(my_pos, enemy_pos):
+            return 1000
+        
+        distance = self.seek_turn_distance(my_pos, enemy_pos, map_state)
+        
+        if distance is None:
+            return -10000
+        
+        hide_mobility = len(self._get_hide_action(enemy_pos, map_state))
+        score = -distance * 100 - hide_mobility * 20
+
+        if hide_mobility <=1:
+            score += 50
+
+        return score
+
+    def _minimax_value(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray, depth: int):
+        if self._is_catch_position(my_pos, enemy_pos) or depth == 0:
+            return self._evaluate_state(my_pos, enemy_pos, map_state)
+
+        best_score = -float('inf')  # Seek muốn score lớn nhất
+
+        for seek_action in self._get_seek_action(my_pos, map_state):
+            seek_next = self._apply_seek_action(my_pos, seek_action, map_state)
+
+            worst_score = float('inf')  # Hide muốn score nhỏ nhất
+
+            for hide_action in self._get_hide_action(enemy_pos, map_state):
+                hide_next = self._apply_hide_action(enemy_pos, hide_action, map_state)
+
+                score = self._minimax_value(
+                    seek_next,
+                    hide_next,
+                    map_state,
+                    depth - 1
+                )
+
+                if score < worst_score:
+                    worst_score = score
+
+            if worst_score > best_score:
+                best_score = worst_score
+
+        return best_score
 
     def _minimax_decision(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray):
-        pass
+        best_score = float('-inf')
+        best_action = (Move.STAY, 1)
+
+        for action in self._get_seek_action(my_pos, map_state):
+            new_my_pos = self._apply_seek_action(my_pos, action, map_state)
+            score = self._minimax_value(new_my_pos, enemy_pos, map_state, depth=2)
+
+            if score > best_score:
+                best_score = score
+                best_action = action
+
+        return best_action
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int):
+        self._minimax_cache = {}
+        self._eval_cache = {}
+        self._dist_cache = {}
+
         if enemy_position is not None:
             enemy_position = self._normalize_pos(enemy_position)
             self.last_known_enemy_pos = enemy_position
 
         my_position = self._normalize_pos(my_position)
         
-        self.visit_count[my_position] = self.visit_count.get(my_position, 0) + 1
-        self.recent_positions.append(my_position)
-
         target = enemy_position or self.last_known_enemy_pos
 
         if target is None:
             return self._explore(my_position, map_state)
 
         path = self.astar_to_any_goal(my_position, target, map_state)
+
+        if self._is_catch_position(my_position, target):
+            return Move.STAY, 1
+        
         if path is None or len(path) < 2:
-            return self._explore(my_position, map_state)
+            return Move.STAY, 1
+        
+        if len(path) <= 7:
+            best_action = self._minimax_decision(my_position, target, map_state)
+            next_move = best_action[0]
+            straight_steps = self._straight_steps_from_path(path, next_move)
 
-        next_pos = path[1]
-        next_move = self.move_from_positions(my_position, next_pos)
-        straight_steps = self._straight_steps_from_path(path, next_move)
+            if straight_steps == len(path) - 1 and straight_steps < self.pacman_speed:
+                desired_steps = self.pacman_speed
+            else:
+                desired_steps = straight_steps
 
-        if straight_steps == len(path) - 1 and straight_steps < self.pacman_speed:
-            desired_steps = self.pacman_speed
+            steps = self._max_valid_steps(my_position, next_move, map_state, desired_steps)
+            best_action = (next_move, steps)
+
+            return best_action
         else:
-            desired_steps = straight_steps
+            next_pos = path[1]
+            next_move = self.move_from_positions(my_position, next_pos)
+            straight_steps = self._straight_steps_from_path(path, next_move)
 
-        steps = self._max_valid_steps(my_position, next_move, map_state, desired_steps)
-        steps = max(1, steps)
+            if straight_steps == len(path) - 1 and straight_steps < self.pacman_speed:
+                desired_steps = self.pacman_speed
+            else:
+                desired_steps = straight_steps
+
+            steps = self._max_valid_steps(my_position, next_move, map_state, desired_steps)
+            steps = max(1, steps)
 
         return (next_move, steps)
     
