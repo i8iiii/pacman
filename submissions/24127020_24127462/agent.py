@@ -447,14 +447,14 @@ class GhostAgent(BaseGhostAgent):
             score = self.safety_map[tile] + W_DIST * seek_d - W_RATIO * ratio
 
             if seeker_is_close and is_corner:
-                score += 30
+                score += 5
 
             dx = tile[0] - my_pos[0]
             dy = tile[1] - my_pos[1]
             sx = threat_pos[0] - my_pos[0]
             sy = threat_pos[1] - my_pos[1]
             if dx * sx + dy * sy > 0:
-                score -= 10    
+                score -= (40 if seeker_is_close else 10)
 
             if score > best_score:
                 best_score = score

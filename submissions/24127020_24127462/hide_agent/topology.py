@@ -51,7 +51,7 @@ def _topology_score(pos: tuple, map_state: np.ndarray) -> float:
    if degree == 3:
       return 25.0
 
-   return 40.0
+   return 30.0
 
 
 from pathlib import Path
