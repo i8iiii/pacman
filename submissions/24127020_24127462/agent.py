@@ -42,10 +42,9 @@ class PacmanAgent(BasePacmanAgent):
 
     def astar_to_any_goal(self, start: tuple, goal: tuple, map_state: np.ndarray):
         goals = self._capture_goals(goal, map_state)
-        all_goals = [goal] + goals
 
         def heuristic(pos):
-            return min(self.manhattan_distance(pos, g) for g in all_goals)
+            return min(self.manhattan_distance(pos, g) for g in goals)
 
         open_set = [(0.0, start)]
         g_score = {start: 0}
@@ -59,7 +58,7 @@ class PacmanAgent(BasePacmanAgent):
                 continue
             closed_set.add(current)
 
-            if current in all_goals:
+            if current in goals:
                 return self.reconstruct_path(came_from, current)
 
             for neighbor in self.get_neighbors(current, map_state):
@@ -130,6 +129,10 @@ class PacmanAgent(BasePacmanAgent):
         return steps
     
     def seek_turn_distance(self, start: tuple, enemy_pos: tuple, map_state: np.ndarray) -> int:
+        key = (start, enemy_pos)
+        if key in self._dist_cache:
+            return self._dist_cache[key]
+        
         goals = self._capture_goals(enemy_pos, map_state)
 
         visited = set()
@@ -143,6 +146,7 @@ class PacmanAgent(BasePacmanAgent):
             visited.add(current)
 
             if current in goals:
+                self._dist_cache[key] = distance
                 return distance
 
             for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
@@ -150,7 +154,8 @@ class PacmanAgent(BasePacmanAgent):
                 if next_pos not in visited and self._is_valid_position(next_pos, map_state):
                     queue.append((next_pos, distance + 1))
 
-        return 99999999  # Unreachable
+        self._dist_cache[key] = 99999999  # Unreachable
+        return 99999999
 
     def _get_seek_action(self, seek_pos: tuple, map_state: np.ndarray):
         actions = []
@@ -205,6 +210,10 @@ class PacmanAgent(BasePacmanAgent):
         return new_pos
 
     def _evaluate_state(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray):
+        key = (my_pos, enemy_pos)
+        if key in self._eval_cache:
+            return self._eval_cache[key]
+        
         if self._is_catch_position(my_pos, enemy_pos):
             return 1000
         
@@ -214,23 +223,32 @@ class PacmanAgent(BasePacmanAgent):
             return -10000
         
         hide_mobility = len(self._get_hide_action(enemy_pos, map_state))
-        score = -distance * 100 - hide_mobility * 20
+        score = -distance * 10 - hide_mobility * 2
 
-        if hide_mobility <=1:
-            score += 50
+        if hide_mobility <= 2:
+            score += 5
 
+        self._eval_cache[key] = score
         return score
 
-    def _minimax_value(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray, depth: int):
+    def _minimax_value(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray, depth: int, alpha: float = float('-inf'), beta: float = float('inf')) -> float:
+        key = (my_pos, enemy_pos, depth)
+        if key in self._minimax_cache:
+            value = self._evaluate_state(my_pos, enemy_pos, map_state)
+            self._minimax_cache[key] = value
+            return value
+        
         if self._is_catch_position(my_pos, enemy_pos) or depth == 0:
             return self._evaluate_state(my_pos, enemy_pos, map_state)
 
         best_score = -float('inf')  # Seek muốn score lớn nhất
+        is_pruned = False
 
         for seek_action in self._get_seek_action(my_pos, map_state):
             seek_next = self._apply_seek_action(my_pos, seek_action, map_state)
 
             worst_score = float('inf')  # Hide muốn score nhỏ nhất
+            local_beta = beta 
 
             for hide_action in self._get_hide_action(enemy_pos, map_state):
                 hide_next = self._apply_hide_action(enemy_pos, hide_action, map_state)
@@ -239,35 +257,66 @@ class PacmanAgent(BasePacmanAgent):
                     seek_next,
                     hide_next,
                     map_state,
-                    depth - 1
+                    depth - 1,
+                    alpha,
+                    local_beta
                 )
 
                 if score < worst_score:
                     worst_score = score
 
+                local_beta = min(local_beta, worst_score)
+
+                if local_beta <= alpha:
+                    is_pruned = True
+                    break  # Alpha-beta pruning
+
             if worst_score > best_score:
                 best_score = worst_score
 
+            alpha = max(alpha, best_score)
+            if beta <= alpha:
+                is_pruned = True
+                break  # Alpha-beta pruning
+        if not is_pruned:
+            self._minimax_cache[key] = best_score
         return best_score
 
-    def _minimax_decision(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray):
+    def _minimax_decision(self, my_pos: tuple, enemy_pos: tuple, map_state: np.ndarray, depth: int, alpha_d: float = float('-inf'), beta_d: float = float('inf')) -> tuple:
         best_score = float('-inf')
         best_action = (Move.STAY, 1)
 
         for action in self._get_seek_action(my_pos, map_state):
             new_my_pos = self._apply_seek_action(my_pos, action, map_state)
-            score = self._minimax_value(new_my_pos, enemy_pos, map_state, depth=2)
+            
+            worst_score = float('inf')
+            local_beta = beta_d
 
-            if score > best_score:
-                best_score = score
+            for hide_action in self._get_hide_action(enemy_pos, map_state):
+                new_enemy_pos = self._apply_hide_action(enemy_pos, hide_action, map_state)
+                score = self._minimax_value(new_my_pos, new_enemy_pos, map_state, depth=depth - 1, alpha=alpha_d, beta=local_beta)
+
+                if score < worst_score:
+                    worst_score = score
+
+                local_beta = min(local_beta, worst_score)
+                if local_beta <= alpha_d:
+                    break  # Alpha-beta pruning
+
+            if worst_score > best_score:
+                best_score = worst_score
                 best_action = action
+            
+            alpha_d = max(alpha_d, best_score)
+            if beta_d <= alpha_d:
+                break  # Alpha-beta pruning
 
         return best_action
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int):
-        self._minimax_cache = {}
-        self._eval_cache = {}
-        self._dist_cache = {}
+        self._minimax_cache.clear()
+        self._eval_cache.clear()
+        self._dist_cache.clear()
 
         if enemy_position is not None:
             enemy_position = self._normalize_pos(enemy_position)
@@ -289,7 +338,7 @@ class PacmanAgent(BasePacmanAgent):
             return Move.STAY, 1
         
         if len(path) <= 7:
-            best_action = self._minimax_decision(my_position, target, map_state)
+            best_action = self._minimax_decision(my_position, target, map_state, depth=3)
             next_move = best_action[0]
             straight_steps = self._straight_steps_from_path(path, next_move)
 
