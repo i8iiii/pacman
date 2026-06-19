@@ -1,4 +1,0 @@
-# Weights
-THREAT_TRIGGER = 3
-W_DIST = 3.0
-W_RATIO = 60.0

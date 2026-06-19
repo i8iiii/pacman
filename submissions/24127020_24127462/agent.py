@@ -5,7 +5,7 @@ src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from agent_interface import PacmanAgent as BasePacmanAgent
-from agent_interface import GhostAgent as BaseGhostAgent
+
 from environment import Move
 import numpy as np
 import random
@@ -408,38 +408,24 @@ class PacmanAgent(BasePacmanAgent):
             return abs(col_diff)
         return 1
 
-from hide_agent import (
-    Move,
-    np,
-    _apply_move,
-    _is_valid_position,
-    _topology_score,
-    _local_space_score,
-    _bfs_distances,
-    _bfs_path,
-    _get_neighbors,
-    _is_straight_corridor,
-    _translate_move,
-    THREAT_TRIGGER,
-    W_DIST,
-    W_RATIO,
-)
-
+from agent_interface import GhostAgent as BaseGhostAgent
+from hide_agent import helpers
+from hide_agent import core
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "A-Train"
-
-        self._map_built = False
         self.last_known_enemy_pos = None
-        self.safety_map: dict[tuple, float] = {}
 
-    def step(self, map_state, my_position, enemy_position, step_number) -> Move:
-        if not self._map_built:
-            self._build_safety_map(map_state)
-            # debugging
-            self._dump_safety_map(map_state, Path(__file__).parent / "hide_agent" / "safety_map.txt")  
-            self._map_built = True
+        self.run_once = False
+        self.dead_end_exit: dict[tuple, tuple] = {}
+
+        self.forced_exit_path: list[tuple] = []
+
+    def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number) -> Move:
+        if not self.run_once:
+            self.dead_end_exit = helpers.build_dead_end_exit_map(map_state)
+            self.run_once = True
 
         if enemy_position is not None:
             self.last_known_enemy_pos = enemy_position
@@ -448,108 +434,68 @@ class GhostAgent(BaseGhostAgent):
             enemy_position if enemy_position is not None else self.last_known_enemy_pos
         )
 
-        # LAB1: 
-        return self._best_move(map_state, my_position, threat)
-
-    def _best_move(
-        self, map_state: np.ndarray, my_pos: tuple, threat_pos: tuple
-    ) -> Move:
-
-        # TODO: Blind Version
-        if my_pos is None or threat_pos is None:
+        return self._best_move(my_position, threat, map_state)
+    
+    def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray) -> Move:
+        # LAB1: Final
+        if threat is None:
             return Move.STAY
 
-        my_dist = _bfs_distances(my_pos, map_state)
-        seeker_dist = _bfs_distances(threat_pos, map_state)
+        if self.forced_exit_path:
+            if self.forced_exit_path[0] == my_pos:
+                self.forced_exit_path.pop(0)
 
-        seeker_steps_to_me = seeker_dist.get(my_pos, 3636) / 2
-        seeker_is_close = seeker_steps_to_me <=  THREAT_TRIGGER
+            if self.forced_exit_path:
+                next_cell = self.forced_exit_path[0]
 
-        best_score = float("-inf")
-        best_dest = None
+                return helpers.translate_move(my_pos, next_cell)
 
-        for tile in self.safety_map:
-            if tile == my_pos:
-                continue
+        neighbors = helpers.get_neighbors(my_pos, map_state)
+        
+        def __fall_back_move() -> Move:
+            """Return move that maximizes distance from threat."""
 
-            my_d = my_dist.get(tile)
-            seek_d = seeker_dist.get(tile)
-
-            if my_d is None or seek_d is None:
-                continue
-
-            # Seeker moves 2 cells
-            seek_d = (seek_d + 1) // 2
-
-            # Seeker can reach this tile first
-            if not seeker_is_close and my_d >= seek_d:
-                continue
-
-            neighbors = _get_neighbors(tile, map_state)
-
-            is_corner = len(neighbors) == 2 and not _is_straight_corridor(
-                tile, neighbors
+            best_cell = max(
+                neighbors, 
+                key=lambda cell: len(core.bfs(cell, threat, map_state)) - 1
             )
 
-            ratio = my_d / max(seek_d, 1)
+            return helpers.translate_move(my_pos, best_cell)
 
-            score = self.safety_map[tile] + W_DIST * seek_d - W_RATIO * ratio
+        if my_pos in self.dead_end_exit:
+            closest_exit = self.dead_end_exit[my_pos];
+            exit_steps = len(core.bfs(my_pos, closest_exit, map_state)) - 1
+            threat_to_exit_steps = (len(core.bfs(threat, closest_exit, map_state)) - 1) // 2
 
-            if seeker_is_close and is_corner:
-                score += 5
+            if 2 * exit_steps >= threat_to_exit_steps:
+                self.forced_exit_path = core.bfs(my_pos, closest_exit, map_state)
 
-            dx = tile[0] - my_pos[0]
-            dy = tile[1] - my_pos[1]
-            sx = threat_pos[0] - my_pos[0]
-            sy = threat_pos[1] - my_pos[1]
-            if dx * sx + dy * sy > 0:
-                score -= (40 if seeker_is_close else 10)
+                if len(self.forced_exit_path) > 1:
+                    next_cell = self.forced_exit_path[1]
 
-            if score > best_score:
-                best_score = score
-                best_dest = tile
+                    return helpers.translate_move(my_pos, next_cell)
 
-        # Fallback
-        if best_dest is None:
-            neighbors = _get_neighbors(my_pos, map_state)
-
-            if not neighbors:
                 return Move.STAY
+            else:
+                return __fall_back_move()
+            
+        remaining_steps = (len(core.bfs(threat, my_pos, map_state)) - 1) // 2
+        candidates = {}
 
-            best_dest = max(neighbors, key=lambda pos: seeker_dist.get(pos, 0))
+        neighbors.append(my_pos)
+        for cell in neighbors:
+            if remaining_steps > 4 and cell in self.dead_end_exit:
+                continue
 
-        path = _bfs_path(my_pos, best_dest, map_state)
+            score = core.simulate(cell, threat, map_state, min(remaining_steps, 5))
+            candidates[cell] = score
 
-        if len(path) < 2:
-            return Move.STAY
+        if not candidates:
+            return __fall_back_move()
 
-        return _translate_move(my_pos, path[1])
+        best_candidate = max(
+            candidates,
+            key=candidates.get
+        )
 
-    def _build_safety_map(self, map_state: np.ndarray) -> None:
-        self.safety_map = {}
-
-        for row in range(map_state.shape[0]):
-            for col in range(map_state.shape[1]):
-                pos = (row, col)
-
-                if not _is_valid_position(pos, map_state):
-                    continue
-
-                topo = _topology_score(pos, map_state)
-                space = _local_space_score(pos, map_state)
-
-                self.safety_map[pos] = topo + space
-
-    def _dump_safety_map(
-        self, map_state: np.ndarray, filename=Path(__file__).parent / "safety_map.txt"
-    ) -> None:
-        with open(filename, "w") as f:
-            for row in range(map_state.shape[0]):
-                line = []
-                for col in range(map_state.shape[1]):
-                    pos = (row, col)
-                    if not _is_valid_position(pos, map_state):
-                        line.append("####")
-                    else:
-                        line.append(f"{ self.safety_map[pos]:4.0f}")
-                f.write(" ".join(line) + "\n")
+        return helpers.translate_move(my_pos, best_candidate)
