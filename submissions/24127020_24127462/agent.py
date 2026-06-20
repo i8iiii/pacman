@@ -411,21 +411,24 @@ class PacmanAgent(BasePacmanAgent):
 from agent_interface import GhostAgent as BaseGhostAgent
 from hide_agent import helpers
 from hide_agent import core
+
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = "A-Train"
+        self.name = "FatNagi"
         self.last_known_enemy_pos = None
 
         self.run_once = False
         self.dead_end_exit: dict[tuple, tuple] = {}
-
         self.forced_exit_path: list[tuple] = []
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number) -> Move:
         if not self.run_once:
             self.dead_end_exit = helpers.build_dead_end_exit_map(map_state)
             self.run_once = True
+            with open(Path(__file__).parent / "hide_agent" / "debugging" / "map.txt", "w") as f:
+                helpers._print_map(f, map_state, self.dead_end_exit)
+
 
         if enemy_position is not None:
             self.last_known_enemy_pos = enemy_position
@@ -439,7 +442,8 @@ class GhostAgent(BaseGhostAgent):
     def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray) -> Move:
         # LAB1: Final
         if threat is None:
-            return Move.STAY
+            # TODO
+            pass
 
         if self.forced_exit_path:
             if self.forced_exit_path[0] == my_pos:
@@ -472,7 +476,6 @@ class GhostAgent(BaseGhostAgent):
 
                 if len(self.forced_exit_path) > 1:
                     next_cell = self.forced_exit_path[1]
-
                     return helpers.translate_move(my_pos, next_cell)
 
                 return Move.STAY

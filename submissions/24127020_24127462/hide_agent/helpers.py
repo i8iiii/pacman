@@ -1,5 +1,6 @@
 from environment import Move
 import numpy as np
+from collections import deque
 
 # BASIC HELPERS
 
@@ -44,67 +45,74 @@ def get_neighbors(pos: tuple, map_state: np.ndarray) -> list[tuple[int, int]]:
 
 # CUSTOM HELPERS
 def list_dead_end_cells(map_state: np.ndarray) -> list[tuple]:
-   """
-   Return all cells that belong to dead-end corridors.
-   Junction cells are not included.
-   """
    dead_end_cells = set()
-
    rows, cols = map_state.shape
 
    for row in range(rows):
       for col in range(cols):
          start = (row, col)
-
          if not is_valid_position(start, map_state):
-            continue
-
+               continue
          if len(get_neighbors(start, map_state)) != 1:
-            continue
+               continue
 
-         previous = None
-         current = start
-
-         while current not in dead_end_cells:
-            dead_end_cells.add(current)
-
-            neighbors = get_neighbors(current, map_state)
-
-            # Terminal dead end
-            if len(neighbors) == 1:
-               next_cells = neighbors
-
-            # Corridor cell
-            elif len(neighbors) == 2:
-               next_cells = [
-                  cell for cell in neighbors
-                  if cell != previous
-               ]
-
-            # Reached gate/junction
-            else:
-               break
-
-            if not next_cells:
-               break
-
-            previous, current = current, next_cells[0]
+         # Found a dead end, walk until we hit a junction
+         prev, cur = None, start
+         while True:
+               dead_end_cells.add(cur)
+               neighbors = [n for n in get_neighbors(cur, map_state) if n != prev]
+               if not neighbors:
+                  break
+               nxt = neighbors[0]
+               if len(get_neighbors(nxt, map_state)) >= 3:
+                  break  # nxt is a junction, stop
+               prev, cur = cur, nxt
 
    return list(dead_end_cells)
+
 
 def build_dead_end_exit_map(map_state: np.ndarray) -> dict[tuple, tuple]:
    dead_end_cells = set(list_dead_end_cells(map_state))
    exit_map = {}
 
    for cell in dead_end_cells:
-      # Walk corridor until we hit the junction
-      prev, cur = None, cell
-      while cur in dead_end_cells:
-         neighbors = [n for n in get_neighbors(cur, map_state) if n != prev]
-         if not neighbors:
-               break
-         prev, cur = cur, neighbors[0]
-      exit_map[cell] = cur  # cur is now the junction
+      for neighbor in get_neighbors(cell, map_state):
+         if neighbor not in dead_end_cells:
+               gate = neighbor
+               stack = [cell]
+               visited = set()
+
+               while stack:
+                  cur = stack.pop()
+                  if cur in visited:
+                     continue
+                  visited.add(cur)
+                  exit_map[cur] = gate
+                  for nxt in get_neighbors(cur, map_state):
+                     if nxt in dead_end_cells:
+                           stack.append(nxt)
 
    return exit_map
 
+def _print_map(file, map_state, dead_end_exit) -> None:
+   dead_ends = set(dead_end_exit.keys())
+   gates = set(dead_end_exit.values())
+
+   rows, cols = map_state.shape
+   
+   for row in range(rows):
+      line = []
+
+      for col in range(cols):
+         cell = (row, col)
+
+         if map_state[row, col] != 0:
+            line.append("#")
+         elif cell in gates:
+            line.append("O")
+         elif cell in dead_ends:
+            line.append("X")
+         else:
+            line.append(" ")
+
+      file.write(" ".join(line) + "\n")
