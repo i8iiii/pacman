@@ -455,7 +455,7 @@ class GhostAgent(BaseGhostAgent):
         return self._best_move(my_position, threat, map_state, step_number)
     
     def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray, step_number: int) -> Move:
-        self._log(f"Step: {step_number}")
+        self._log(f"\nStep: #{step_number}")
         # LAB1: Final
         if threat is None:
             # TODO
@@ -484,8 +484,7 @@ class GhostAgent(BaseGhostAgent):
                 self.forced_exit_path.pop(0)
 
             if self.forced_exit_path:
-                return helpers.translate_move(my_pos, self.forced_exit_path[0]
-)
+                return helpers.translate_move(my_pos, self.forced_exit_path[0])
             
         if my_pos in self.dead_end_exit:
             closest_exit = self.dead_end_exit[my_pos];
@@ -562,7 +561,9 @@ class GhostAgent(BaseGhostAgent):
 
                 return helpers.translate_move(my_pos, self.forced_exit_path[1])
 
-        return helpers.translate_move(my_pos, best_candidate)
+        final_move = helpers.translate_move(my_pos, best_candidate)
+        self._log(f"Final Decision: {final_move}")
+        return final_move
 
 
 
