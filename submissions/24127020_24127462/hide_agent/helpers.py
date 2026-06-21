@@ -1,6 +1,7 @@
 from environment import Move
 import numpy as np
 from collections import deque
+from . import core
 
 # BASIC HELPERS
 
@@ -42,6 +43,40 @@ def get_neighbors(pos: tuple, map_state: np.ndarray) -> list[tuple[int, int]]:
          neighbors.append(next_pos)
    
    return neighbors
+
+import numpy as np
+
+def find_safest_junction(
+   my_pos: tuple,
+   threat: tuple,
+   range: int,
+   dead_end_exit: dict[tuple, tuple],
+   map_state: np.ndarray,
+) -> tuple | None:
+
+   junctions = set(dead_end_exit.values())
+   junctions.discard(my_pos)
+
+   if not junctions:
+      return None
+
+   def dist(a, b):
+      path = core.bfs(a, b, map_state)
+      return len(path) - 1 if path else float("inf")
+
+   # 1. collect candidate junctions in range
+   my_dist_to_threat = dist(my_pos, threat)
+   candidates = [
+      j for j in junctions
+      if dist(my_pos, j) <= range
+   ]
+
+   if not candidates:
+      return None
+
+   # 2. compute distance from each junction → threat
+   # 3. pick safest = farthest from threat
+   return max(candidates, key=lambda j: dist(j, threat))
 
 # CUSTOM HELPERS
 def list_dead_end_cells(map_state: np.ndarray) -> list[tuple]:
@@ -113,6 +148,7 @@ def _print_map(file, map_state, dead_end_exit) -> None:
          elif cell in dead_ends:
             line.append("X")
          else:
-            line.append(" ")
+            line.append(".")
 
       file.write(" ".join(line) + "\n")
+

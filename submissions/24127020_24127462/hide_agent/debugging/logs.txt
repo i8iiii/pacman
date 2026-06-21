@@ -1,0 +1,74 @@
+Step: 1
+In Dead End
+exit steps=4, threat_to_exit=13
+Running To Exit
+Step: 2
+Following Forced Path
+[(1, 17), (1, 18), (1, 19), (1, 20), (1, 21)]
+Step: 3
+Following Forced Path
+[(1, 17), (1, 18), (1, 19), (1, 20), (1, 21)]
+Step: 4
+Following Forced Path
+[(1, 18), (1, 19), (1, 20), (1, 21)]
+Step: 5
+Following Forced Path
+[(1, 19), (1, 20), (1, 21)]
+Step: 6
+Following Forced Path
+[(1, 20), (1, 21)]
+Step: 7
+Following Forced Path
+[(1, 21)]
+Consider Options: 
+Cell: (2, 21), Score: 9
+Enemy is 8 steps away, dead end cells excluded (1, 20)
+Cell: (1, 22), Score: 11
+Step: 8
+Consider Options: 
+Cell: (1, 21), Score: 8
+Cell: (1, 23), Score: 10
+Step: 9
+Consider Options: 
+Cell: (1, 22), Score: 8
+Cell: (1, 24), Score: 10
+Step: 10
+Consider Options: 
+Cell: (1, 23), Score: 7
+Cell: (1, 25), Score: 9
+Step: 11
+Consider Options: 
+Cell: (1, 24), Score: 6
+Cell: (1, 26), Score: 8
+Step: 12
+Consider Options: 
+Cell: (1, 25), Score: 6
+Cell: (1, 27), Score: 8
+Step: 13
+Consider Options: 
+Cell: (2, 27), Score: 7
+Cell: (1, 26), Score: 5
+Step: 14
+Consider Options: 
+Cell: (1, 27), Score: 4
+Cell: (3, 27), Score: 6
+Step: 15
+Consider Options: 
+Cell: (2, 27), Score: 3
+Cell: (4, 27), Score: 5
+Step: 16
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 17
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 18
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 19
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 20
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 21
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 22
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE
+Step: 23
+ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE

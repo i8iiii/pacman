@@ -422,13 +422,28 @@ class GhostAgent(BaseGhostAgent):
         self.dead_end_exit: dict[tuple, tuple] = {}
         self.forced_exit_path: list[tuple] = []
 
-    def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number) -> Move:
+        self.odd_step_position = None
+    
+    def _log(self, message, file=Path(__file__).parent / "hide_agent" / "debugging" / "logs.txt"):
+        file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file, "a", encoding="utf-8") as f:
+            f.write(str(message) + "\n") 
+
+    def _log_clear(self, file: Path = Path(__file__).parent / "hide_agent" / "debugging" / "logs.txt") -> None:
+        file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file, "w", encoding="utf-8") as f:
+            f.write("")
+
+
+    def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
         if not self.run_once:
+            self._log_clear()
             self.dead_end_exit = helpers.build_dead_end_exit_map(map_state)
             self.run_once = True
             with open(Path(__file__).parent / "hide_agent" / "debugging" / "map.txt", "w") as f:
                 helpers._print_map(f, map_state, self.dead_end_exit)
-
 
         if enemy_position is not None:
             self.last_known_enemy_pos = enemy_position
@@ -437,28 +452,20 @@ class GhostAgent(BaseGhostAgent):
             enemy_position if enemy_position is not None else self.last_known_enemy_pos
         )
 
-        return self._best_move(my_position, threat, map_state)
+        return self._best_move(my_position, threat, map_state, step_number)
     
-    def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray) -> Move:
+    def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray, step_number: int) -> Move:
+        self._log(f"Step: {step_number}")
         # LAB1: Final
         if threat is None:
             # TODO
             pass
 
-        if self.forced_exit_path:
-            if self.forced_exit_path[0] == my_pos:
-                self.forced_exit_path.pop(0)
-
-            if self.forced_exit_path:
-                next_cell = self.forced_exit_path[0]
-
-                return helpers.translate_move(my_pos, next_cell)
-
         neighbors = helpers.get_neighbors(my_pos, map_state)
-        
+        remaining_steps = (len(core.bfs(threat, my_pos, map_state)) - 1) // 2    
+
         def __fall_back_move() -> Move:
             """Return move that maximizes distance from threat."""
-
             best_cell = max(
                 neighbors, 
                 key=lambda cell: len(core.bfs(cell, threat, map_state)) - 1
@@ -466,12 +473,30 @@ class GhostAgent(BaseGhostAgent):
 
             return helpers.translate_move(my_pos, best_cell)
 
+        if remaining_steps < 5:
+            self._log("ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE")
+            return __fall_back_move()
+        
+        if self.forced_exit_path:
+            self._log("Following Forced Path")
+            self._log(self.forced_exit_path)
+            if self.forced_exit_path[0] == my_pos:
+                self.forced_exit_path.pop(0)
+
+            if self.forced_exit_path:
+                return helpers.translate_move(my_pos, self.forced_exit_path[0]
+)
+            
         if my_pos in self.dead_end_exit:
             closest_exit = self.dead_end_exit[my_pos];
             exit_steps = len(core.bfs(my_pos, closest_exit, map_state)) - 1
             threat_to_exit_steps = (len(core.bfs(threat, closest_exit, map_state)) - 1) // 2
 
-            if 2 * exit_steps >= threat_to_exit_steps:
+            self._log("In Dead End")
+            self._log(f"exit steps={exit_steps}, threat_to_exit={threat_to_exit_steps}")
+
+            if 2 * exit_steps <= threat_to_exit_steps:
+                self._log("Running To Exit")
                 self.forced_exit_path = core.bfs(my_pos, closest_exit, map_state)
 
                 if len(self.forced_exit_path) > 1:
@@ -480,25 +505,65 @@ class GhostAgent(BaseGhostAgent):
 
                 return Move.STAY
             else:
+                self._log("Fall Back Move")
                 return __fall_back_move()
             
-        remaining_steps = (len(core.bfs(threat, my_pos, map_state)) - 1) // 2
         candidates = {}
 
-        neighbors.append(my_pos)
+        if remaining_steps > 8:
+            self._log(f"Enemy is far: {remaining_steps} steps")
+            self._log("Consider Staying")
+            neighbors.append(my_pos)
+
+        self._log("Consider Options: ")
         for cell in neighbors:
             if remaining_steps > 4 and cell in self.dead_end_exit:
+                self._log(f"Enemy is {remaining_steps} steps away, dead end cells excluded {cell}")
                 continue
-
-            score = core.simulate(cell, threat, map_state, min(remaining_steps, 5))
+            
+            score = core.simulate(cell, threat, map_state, min(remaining_steps, 3))
             candidates[cell] = score
 
+            self._log(f"Cell: {cell}, Score: {score}")
+
         if not candidates:
+            self._log("No good options, Fall Back Move")
             return __fall_back_move()
 
         best_candidate = max(
             candidates,
             key=candidates.get
         )
+        if step_number % 2 == 1:
+            self.odd_step_position = my_pos
+
+        # Fidgeting
+        if step_number != 0 and step_number % 2 == 0:
+            if best_candidate == self.odd_step_position:
+                
+                self._log("Repeating Move Pattern found, moving to the nearest junction")
+                closest_junction = helpers.find_safest_junction(
+                    my_pos,
+                    threat,
+                    remaining_steps,
+                    self.dead_end_exit,
+                    map_state
+                )
+
+                if closest_junction is None:
+                    return __fall_back_move()
+
+                path = core.bfs(my_pos, closest_junction, map_state)
+
+                if not path or len(path) < 2:
+                    return __fall_back_move()
+
+                self.forced_exit_path = path
+
+                return helpers.translate_move(my_pos, self.forced_exit_path[1])
 
         return helpers.translate_move(my_pos, best_candidate)
+
+
+
+        
