@@ -217,16 +217,16 @@ class PacmanAgent(BasePacmanAgent):
         if self._is_catch_position(my_pos, enemy_pos):
             return 1000
         
-        distance = self.seek_turn_distance(my_pos, enemy_pos, map_state)
+        distance = -self.manhattan_distance(my_pos, enemy_pos) + 4 * self.seek_turn_distance(my_pos, enemy_pos, map_state)
         
         if distance is None:
             return -10000
         
         hide_mobility = len(self._get_hide_action(enemy_pos, map_state))
-        score = -distance * 10 - hide_mobility * 2
+        score = -distance * 15 - hide_mobility * 7
 
-        if hide_mobility <= 2:
-            score += 5
+        if hide_mobility <= 1:
+            score += 100
 
         self._eval_cache[key] = score
         return score
@@ -337,7 +337,7 @@ class PacmanAgent(BasePacmanAgent):
         if path is None or len(path) < 2:
             return Move.STAY, 1
         
-        if len(path) <= 7:
+        if len(path) <= 12:
             best_action = self._minimax_decision(my_position, target, map_state, depth=3)
             next_move = best_action[0]
             straight_steps = self._straight_steps_from_path(path, next_move)
