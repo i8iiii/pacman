@@ -439,7 +439,7 @@ class GhostAgent(BaseGhostAgent):
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
         if not self.run_once:
-            self._log_clear()
+            # self._log_clear()
             self.dead_end_exit = helpers.build_dead_end_exit_map(map_state)
             self.run_once = True
             with open(Path(__file__).parent / "hide_agent" / "debugging" / "map.txt", "w") as f:
@@ -455,7 +455,7 @@ class GhostAgent(BaseGhostAgent):
         return self._best_move(my_position, threat, map_state, step_number)
     
     def _best_move(self, my_pos: tuple, threat: tuple, map_state: np.ndarray, step_number: int) -> Move:
-        self._log(f"\nStep: #{step_number}")
+        # self._log(f"\nStep: #{step_number}")
         # LAB1: Final
         if threat is None:
             # TODO
@@ -474,12 +474,12 @@ class GhostAgent(BaseGhostAgent):
             return helpers.translate_move(my_pos, best_cell)
 
         if remaining_steps < 5:
-            self._log("ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE")
+            # self._log("ENEMY IS CLOSE, RUNNING AS FAR AS POSSIBLE")
             return __fall_back_move()
         
         if self.forced_exit_path:
-            self._log("Following Forced Path")
-            self._log(self.forced_exit_path)
+            # self._log("Following Forced Path")
+            # self._log(self.forced_exit_path)
             if self.forced_exit_path[0] == my_pos:
                 self.forced_exit_path.pop(0)
 
@@ -491,11 +491,11 @@ class GhostAgent(BaseGhostAgent):
             exit_steps = len(core.bfs(my_pos, closest_exit, map_state)) - 1
             threat_to_exit_steps = (len(core.bfs(threat, closest_exit, map_state)) - 1) // 2
 
-            self._log("In Dead End")
-            self._log(f"exit steps={exit_steps}, threat_to_exit={threat_to_exit_steps}")
+            # self._log("In Dead End")
+            # self._log(f"exit steps={exit_steps}, threat_to_exit={threat_to_exit_steps}")
 
             if 2 * exit_steps <= threat_to_exit_steps:
-                self._log("Running To Exit")
+                # self._log("Running To Exit")
                 self.forced_exit_path = core.bfs(my_pos, closest_exit, map_state)
 
                 if len(self.forced_exit_path) > 1:
@@ -504,29 +504,29 @@ class GhostAgent(BaseGhostAgent):
 
                 return Move.STAY
             else:
-                self._log("Fall Back Move")
+                # self._log("Fall Back Move")
                 return __fall_back_move()
             
         candidates = {}
 
         if remaining_steps > 8:
-            self._log(f"Enemy is far: {remaining_steps} steps")
-            self._log("Consider Staying")
+            # self._log(f"Enemy is far: {remaining_steps} steps")
+            # self._log("Consider Staying")
             neighbors.append(my_pos)
 
-        self._log("Consider Options: ")
+        # self._log("Consider Options: ")
         for cell in neighbors:
             if remaining_steps > 4 and cell in self.dead_end_exit:
-                self._log(f"Enemy is {remaining_steps} steps away, dead end cells excluded {cell}")
+                # self._log(f"Enemy is {remaining_steps} steps away, dead end cells excluded {cell}")
                 continue
             
             score = core.simulate(cell, threat, map_state, min(remaining_steps, 3))
             candidates[cell] = score
 
-            self._log(f"Cell: {cell}, Score: {score}")
+            # self._log(f"Cell: {cell}, Score: {score}")
 
         if not candidates:
-            self._log("No good options, Fall Back Move")
+            # self._log("No good options, Fall Back Move")
             return __fall_back_move()
 
         best_candidate = max(
@@ -540,7 +540,7 @@ class GhostAgent(BaseGhostAgent):
         if step_number != 0 and step_number % 2 == 0:
             if best_candidate == self.odd_step_position:
                 
-                self._log("Repeating Move Pattern found, moving to the nearest junction")
+                # self._log("Repeating Move Pattern found, moving to the nearest junction")
                 closest_junction = helpers.find_safest_junction(
                     my_pos,
                     threat,
@@ -562,7 +562,7 @@ class GhostAgent(BaseGhostAgent):
                 return helpers.translate_move(my_pos, self.forced_exit_path[1])
 
         final_move = helpers.translate_move(my_pos, best_candidate)
-        self._log(f"Final Decision: {final_move}")
+        # self._log(f"Final Decision: {final_move}")
         return final_move
 
 
