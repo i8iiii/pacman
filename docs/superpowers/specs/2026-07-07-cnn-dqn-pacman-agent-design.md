@@ -78,7 +78,7 @@ step(map_state, my_position, enemy_position, step_number)
 
 ### Key Design Choices
 
-- **Confidence threshold on DQN**: `max(Q) - mean(Q)` must exceed a threshold. Prevents blindly following a DQN that is uncertain (common in fog-of-war states the DQN hasn't seen enough during training).
+- **Confidence threshold on DQN**: `max(Q) - mean(Q)` must exceed 0.5. Prevents blindly following a DQN that is uncertain (common in fog-of-war states the DQN hasn't seen enough during training). The threshold value can be tuned — 0.5 is a reasonable starting point that requires the best action's Q-value to stand out from the average.
 - **Map memory**: builds a persistent internal map by merging visible cells each step. A* can pathfind through previously-seen fog areas using this memory.
 - **Frontier exploration**: when Ghost is lost for too long, find boundary cells between known and unknown map areas — smarter than random walk.
 - **Speed-2 handling**: only use `steps=2` when the A* path is straight for 2+ tiles (no overshooting turns).
