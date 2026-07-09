@@ -1,98 +1,119 @@
 === DEBUG LOG ===
-Started: 2026-07-10 00:21:37.154070
+Started: 2026-07-10 01:24:59.980287
 
 - - AGENT INITIALIZED - -
-[CONTROL-ADV]
+[CONTROL-SIM]
  Pacman=(13, 4), Ghost=(9, 14)
-   Candidate Move.LEFT, to=(9, 13), topology=2400, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 6), capture_turns=6, direction_delta=-1, safe_area=22, reversal=False, worst_utility=-7760.0, final=-10820.0
-   Candidate Move.RIGHT, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 6), capture_turns=7, direction_delta=1, safe_area=22, reversal=False, worst_utility=-7837.5, final=-12097.5
-   Candidate Move.STAY, to=(9, 14), topology=955, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 6), capture_turns=6, direction_delta=0, safe_area=22, reversal=False, worst_utility=-6327.75, final=-8787.75
-   Chosen move=Move.RIGHT, from=(9, 14), to=(9, 15), score=-12097.5
-[CONTROL-ADV]
+   Candidate Move.LEFT, to=(9, 13), topology=2400, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=6, direction_delta=-1, safe_area=22, worst_utility=-6517.5, final=-9577.5
+   Candidate Move.RIGHT, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=7, direction_delta=1, safe_area=22, worst_utility=-6517.5, final=-10777.5
+   Candidate Move.STAY, to=(9, 14), topology=955, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=6, direction_delta=0, safe_area=22, worst_utility=-6517.5, final=-8977.5
+   Chosen move=Move.RIGHT, from=(9, 14), to=(9, 15), score=-10777.5
+   Cache sizes: sim=1187, bfs=23, capture=523
+[STEP] move=Move.RIGHT, time=1007.528 ms
+[CONTROL-SIM]
  Pacman=(13, 5), Ghost=(9, 15)
-   Candidate Move.UP, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=19, reversal=False, worst_utility=-6364.0, final=-10084.0
-   Candidate Move.DOWN, to=(10, 15), topology=905, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=21, reversal=False, worst_utility=-6365.25, final=-10445.25
-   Candidate Move.LEFT, to=(9, 14), topology=955, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=5, direction_delta=-1, safe_area=22, reversal=True, worst_utility=-5087.75, final=-8147.75
-   Candidate Move.RIGHT, to=(9, 16), topology=730, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=15, reversal=False, worst_utility=-6356.5, final=-9356.5
-   Candidate Move.STAY, to=(9, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=0, safe_area=24, reversal=False, worst_utility=-7797.5, final=-10617.5
-   Chosen move=Move.STAY, from=(9, 15), to=(9, 15), score=-10617.5
-[CONTROL-ADV]
- Pacman=(11, 5), Ghost=(9, 15)
-   Candidate Move.UP, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=1, safe_area=18, reversal=False, worst_utility=-5084.0, final=-8624.0
-   Candidate Move.DOWN, to=(10, 15), topology=905, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=1, safe_area=19, reversal=False, worst_utility=-5085.25, final=-8805.25
-   Candidate Move.LEFT, to=(9, 14), topology=955, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=4, direction_delta=-1, safe_area=19, reversal=False, worst_utility=2992.25, final=472.25
-   Candidate Move.RIGHT, to=(9, 16), topology=730, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=1, safe_area=14, reversal=False, worst_utility=-5076.5, final=-7896.5
-   Candidate Move.STAY, to=(9, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=0, safe_area=19, reversal=False, worst_utility=-6517.5, final=-5937.5
-   Chosen move=Move.DOWN, from=(9, 15), to=(10, 15), score=-8805.25
-[CONTROL-ADV]
- Pacman=(9, 5), Ghost=(10, 15)
-   Candidate Move.UP, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=4, direction_delta=-1, safe_area=14, reversal=True, worst_utility=1562.5, final=-57.5
-   Candidate Move.DOWN, to=(11, 15), topology=760, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=5, direction_delta=1, safe_area=12, reversal=False, worst_utility=-5038.0, final=-7498.0
-   Candidate Move.STAY, to=(10, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=4, direction_delta=0, safe_area=13, reversal=False, worst_utility=2994.75, final=4654.75
-   Chosen move=Move.DOWN, from=(10, 15), to=(11, 15), score=-7498.0
-[CONTROL-ADV]
- Pacman=(9, 7), Ghost=(11, 15)
-   Candidate Move.UP, to=(10, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=3, direction_delta=-1, safe_area=5, reversal=True, worst_utility=9074.75, final=9074.75
-   Candidate Move.DOWN, to=(12, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=1, safe_area=14, reversal=False, worst_utility=2993.5, final=173.5
-   Candidate Move.STAY, to=(11, 15), topology=760, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=0, safe_area=8, reversal=False, worst_utility=3042.0, final=5602.0
-   Chosen move=Move.DOWN, from=(11, 15), to=(12, 15), score=173.5
-[CONTROL-ADV]
- Pacman=(9, 9), Ghost=(12, 15)
-   Candidate Move.UP, to=(11, 15), topology=760, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=3, direction_delta=-1, safe_area=3, reversal=True, worst_utility=9122.0, final=10682.0
-   Candidate Move.DOWN, to=(13, 15), topology=2375, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=1, safe_area=13, reversal=False, worst_utility=1561.25, final=-1078.75
-   Candidate Move.STAY, to=(12, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=3, direction_delta=0, safe_area=7, reversal=False, worst_utility=9073.5, final=11813.5
-   Chosen move=Move.DOWN, from=(12, 15), to=(13, 15), score=-1078.75
-[CONTROL-ADV]
- Pacman=(9, 11), Ghost=(13, 15)
-   Candidate Move.UP, to=(12, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=2, direction_delta=-1, safe_area=2, reversal=True, worst_utility=31153.5, final=32893.5
-   Candidate Move.DOWN, to=(14, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=1, safe_area=7, reversal=False, worst_utility=9073.5, final=7513.5
-   Candidate Move.LEFT, to=(13, 14), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=2, direction_delta=-1, safe_area=2, reversal=False, worst_utility=31153.5, final=32893.5
-   Candidate Move.RIGHT, to=(13, 16), topology=805, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=1, safe_area=5, reversal=False, worst_utility=9079.75, final=7879.75
-   Candidate Move.STAY, to=(13, 15), topology=2375, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=0, safe_area=5, reversal=False, worst_utility=7641.25, final=10741.25
-   Chosen move=Move.DOWN, from=(13, 15), to=(14, 15), score=7513.5
-[CONTROL-ADV]
- Pacman=(9, 13), Ghost=(14, 15)
-   Candidate Move.UP, to=(13, 15), topology=2375, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(11, 13), capture_turns=2, direction_delta=-1, safe_area=1, reversal=True, worst_utility=29721.25, final=31641.25
-   Candidate Move.DOWN, to=(15, 15), topology=2100, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(11, 13), capture_turns=3, direction_delta=1, safe_area=5, reversal=False, worst_utility=8355.0, final=7155.0
-   Candidate Move.STAY, to=(14, 15), topology=930, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(11, 13), capture_turns=2, direction_delta=0, safe_area=2, reversal=False, worst_utility=31153.5, final=35993.5
-   Chosen move=Move.DOWN, from=(14, 15), to=(15, 15), score=7155.0
-[CONTROL-ADV]
- Pacman=(10, 13), Ghost=(15, 15)
-   Candidate Move.UP, to=(14, 15), topology=930, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 13), capture_turns=2, direction_delta=-1, safe_area=2, reversal=True, worst_utility=31193.5, final=32933.5
-   Candidate Move.DOWN, to=(16, 15), topology=780, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 13), capture_turns=3, direction_delta=1, safe_area=5, reversal=False, worst_utility=9121.0, final=7921.0
-   Candidate Move.LEFT, to=(15, 14), topology=830, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 13), capture_turns=3, direction_delta=1, safe_area=5, reversal=False, worst_utility=9118.5, final=7918.5
-   Candidate Move.STAY, to=(15, 15), topology=2100, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 13), capture_turns=3, direction_delta=0, safe_area=5, reversal=False, worst_utility=8395.0, final=11495.0
-   Chosen move=Move.LEFT, from=(15, 15), to=(15, 14), score=7918.5
-[CONTROL-ADV]
- Pacman=(12, 13), Ghost=(15, 14)
-   Candidate Move.LEFT, to=(15, 13), topology=2000, pacman_best=(<Move.DOWN: (1, 0)>, 1)->(13, 13), capture_turns=3, direction_delta=1, safe_area=3, reversal=False, worst_utility=8360.0, final=8720.0
-   Candidate Move.RIGHT, to=(15, 15), topology=2100, pacman_best=(<Move.DOWN: (1, 0)>, 1)->(13, 13), capture_turns=2, direction_delta=-1, safe_area=1, reversal=True, worst_utility=30435.0, final=32355.0
-   Candidate Move.STAY, to=(15, 14), topology=830, pacman_best=(<Move.DOWN: (1, 0)>, 1)->(13, 13), capture_turns=2, direction_delta=0, safe_area=2, reversal=False, worst_utility=31158.5, final=35998.5
-   Chosen move=Move.LEFT, from=(15, 14), to=(15, 13), score=8720.0
-[CONTROL-ADV]
- Pacman=(13, 13), Ghost=(15, 13)
-   Candidate Move.DOWN, to=(16, 13), topology=680, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(13, 11), capture_turns=2, direction_delta=1, safe_area=2, reversal=False, worst_utility=31166.0, final=31706.0
-   Candidate Move.LEFT, to=(15, 12), topology=780, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(13, 11), capture_turns=1, direction_delta=-1, safe_area=0, reversal=False, worst_utility=501241.0, final=503341.0
-   Candidate Move.RIGHT, to=(15, 14), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 15), capture_turns=1, direction_delta=-1, safe_area=0, reversal=True, worst_utility=501238.5, final=503338.5
-   Candidate Move.STAY, to=(15, 13), topology=2000, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(13, 11), capture_turns=2, direction_delta=0, safe_area=1, reversal=False, worst_utility=30440.0, final=35460.0
-   Chosen move=Move.DOWN, from=(15, 13), to=(16, 13), score=31706.0
-[PANIC] Pacman=(13, 11), Ghost(16, 13)
-   Move.UP to Position=(15, 13), Distance=4
-   Move.DOWN to Position=(17, 13), Distance=6
-   Move.STAY to Position=(16, 13), Distance=5
-   Final Move=Move.DOWN, Position=(16, 13)
-[PANIC] Pacman=(15, 11), Ghost(17, 13)
-   Move.UP to Position=(16, 13), Distance=3
-   Move.LEFT to Position=(17, 12), Distance=5
-   Move.STAY to Position=(17, 13), Distance=4
-   Final Move=Move.LEFT, Position=(17, 13)
-[PANIC] Pacman=(15, 13), Ghost(17, 12)
-   Move.LEFT to Position=(17, 11), Distance=4
-   Move.RIGHT to Position=(17, 13), Distance=2
-   Move.STAY to Position=(17, 12), Distance=3
-   Final Move=Move.LEFT, Position=(17, 12)
-[PANIC] Pacman=(17, 13), Ghost(17, 11)
-   Move.DOWN to Position=(18, 11), Distance=3
-   Move.RIGHT to Position=(17, 12), Distance=1
-   Move.STAY to Position=(17, 11), Distance=2
-   Final Move=Move.DOWN, Position=(17, 11)
+   Candidate Move.UP, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=19, worst_utility=-7082.5, final=-10802.5
+   Candidate Move.DOWN, to=(10, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 7), capture_turns=6, direction_delta=1, safe_area=17, worst_utility=-5038.0, final=-8398.0
+   Candidate Move.LEFT, to=(9, 14), topology=955, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=5, direction_delta=-1, safe_area=22, worst_utility=-5038.0, final=-8098.0
+   Candidate Move.RIGHT, to=(9, 16), topology=730, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=15, worst_utility=-5509.75, final=-8509.75
+   Candidate Move.STAY, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 7), capture_turns=6, direction_delta=0, safe_area=19, worst_utility=-5081.5, final=-7001.5
+   Chosen move=Move.UP, from=(9, 15), to=(8, 15), score=-10802.5
+   Cache sizes: sim=2020, bfs=39, capture=843
+[STEP] move=Move.UP, time=1676.815 ms
+[CONTROL-SIM]
+ Pacman=(11, 5), Ghost=(8, 15)
+   Candidate Move.UP, to=(7, 15), topology=685, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=6, direction_delta=1, safe_area=17, worst_utility=-5802.5, final=-9162.5
+   Candidate Move.DOWN, to=(9, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=-1, safe_area=19, worst_utility=2993.5, final=473.5
+   Candidate Move.STAY, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=0, safe_area=18, worst_utility=-5802.5, final=-5042.5
+   Chosen move=Move.UP, from=(8, 15), to=(7, 15), score=-9162.5
+   Cache sizes: sim=1390, bfs=36, capture=666
+[STEP] move=Move.UP, time=1392.217 ms
+[CONTROL-SIM]
+ Pacman=(9, 5), Ghost=(7, 15)
+   Candidate Move.UP, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=5, direction_delta=1, safe_area=15, worst_utility=-6517.5, final=-9517.5
+   Candidate Move.DOWN, to=(8, 15), topology=880, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=4, direction_delta=-1, safe_area=13, worst_utility=2277.5, final=837.5
+   Candidate Move.STAY, to=(7, 15), topology=685, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=5, direction_delta=0, safe_area=12, worst_utility=2277.5, final=4117.5
+   Chosen move=Move.UP, from=(7, 15), to=(6, 15), score=-9517.5
+   Cache sizes: sim=1329, bfs=38, capture=588
+[STEP] move=Move.UP, time=1300.989 ms
+[CONTROL-SIM]
+ Pacman=(9, 7), Ghost=(6, 15)
+   Candidate Move.UP, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=5, direction_delta=1, safe_area=20, worst_utility=1562.5, final=-2337.5
+   Candidate Move.DOWN, to=(7, 15), topology=685, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=-1, safe_area=8, worst_utility=8357.5, final=7817.5
+   Candidate Move.STAY, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=0, safe_area=15, worst_utility=1562.5, final=2862.5
+   Chosen move=Move.UP, from=(6, 15), to=(5, 15), score=-2337.5
+   Cache sizes: sim=1416, bfs=40, capture=657
+[STEP] move=Move.UP, time=1257.272 ms
+[CONTROL-SIM]
+ Pacman=(9, 9), Ghost=(5, 15)
+   Candidate Move.UP, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=1, safe_area=19, worst_utility=2275.0, final=-1445.0
+   Candidate Move.DOWN, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=3, direction_delta=-1, safe_area=7, worst_utility=7642.5, final=7282.5
+   Candidate Move.RIGHT, to=(5, 16), topology=680, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=1, safe_area=9, worst_utility=3064.5, final=1144.5
+   Candidate Move.STAY, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=0, safe_area=14, worst_utility=7642.5, final=9122.5
+   Chosen move=Move.UP, from=(5, 15), to=(4, 15), score=-1445.0
+   Cache sizes: sim=1186, bfs=31, capture=541
+[STEP] move=Move.UP, time=1301.840 ms
+[CONTROL-SIM]
+ Pacman=(9, 11), Ghost=(4, 15)
+   Candidate Move.UP, to=(3, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=4, direction_delta=1, safe_area=16, worst_utility=8355.0, final=5175.0
+   Candidate Move.DOWN, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=-1, safe_area=5, worst_utility=29722.5, final=29722.5
+   Candidate Move.STAY, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=0, safe_area=9, worst_utility=8355.0, final=10735.0
+   Chosen move=Move.UP, from=(4, 15), to=(3, 15), score=5175.0
+   Cache sizes: sim=1331, bfs=31, capture=631
+[STEP] move=Move.UP, time=1466.870 ms
+[CONTROL-SIM]
+ Pacman=(9, 13), Ghost=(3, 15)
+   Candidate Move.UP, to=(2, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=7, worst_utility=9139.5, final=7579.5
+   Candidate Move.DOWN, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=2, direction_delta=-1, safe_area=2, worst_utility=30435.0, final=32175.0
+   Candidate Move.LEFT, to=(3, 14), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=7, worst_utility=8360.0, final=6800.0
+   Candidate Move.RIGHT, to=(3, 16), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=5, worst_utility=8373.75, final=7173.75
+   Candidate Move.STAY, to=(3, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=0, safe_area=7, worst_utility=30435.0, final=33175.0
+   Chosen move=Move.LEFT, from=(3, 15), to=(3, 14), score=6800.0
+   Cache sizes: sim=2227, bfs=40, capture=923
+[STEP] move=Move.LEFT, time=1935.552 ms
+[CONTROL-SIM]
+ Pacman=(9, 15), Ghost=(3, 14)
+   Candidate Move.LEFT, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=3, direction_delta=1, safe_area=5, worst_utility=30440.0, final=29240.0
+   Candidate Move.RIGHT, to=(3, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=2, direction_delta=-1, safe_area=1, worst_utility=500515.0, final=502435.0
+   Candidate Move.STAY, to=(3, 14), topology=930, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=2, direction_delta=0, safe_area=2, worst_utility=30440.0, final=35280.0
+   Chosen move=Move.LEFT, from=(3, 14), to=(3, 13), score=29240.0
+   Cache sizes: sim=1774, bfs=38, capture=789
+[STEP] move=Move.LEFT, time=1570.915 ms
+[CONTROL-SIM]
+ Pacman=(7, 15), Ghost=(3, 13)
+   Candidate Move.DOWN, to=(4, 13), topology=755, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=1, safe_area=2, worst_utility=31220.75, final=31760.75
+   Candidate Move.LEFT, to=(3, 12), topology=830, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=1, safe_area=2, worst_utility=30440.0, final=30980.0
+   Candidate Move.RIGHT, to=(3, 14), topology=930, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
+   Candidate Move.STAY, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=0, safe_area=1, worst_utility=500520.0, final=505540.0
+   Chosen move=Move.LEFT, from=(3, 13), to=(3, 12), score=30980.0
+   Cache sizes: sim=1283, bfs=33, capture=583
+[STEP] move=Move.LEFT, time=1281.859 ms
+[CONTROL-SIM]
+ Pacman=(5, 15), Ghost=(3, 12)
+   Candidate Move.LEFT, to=(3, 11), topology=2000, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=2, direction_delta=1, safe_area=1, worst_utility=500520.0, final=501240.0
+   Candidate Move.RIGHT, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
+   Candidate Move.STAY, to=(3, 12), topology=830, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=1, direction_delta=0, safe_area=0, worst_utility=1000000, final=1005200
+   Chosen move=Move.LEFT, from=(3, 12), to=(3, 11), score=501240.0
+   Cache sizes: sim=1186, bfs=34, capture=540
+[STEP] move=Move.LEFT, time=1051.579 ms
+[CONTROL-SIM]
+ Pacman=(3, 15), Ghost=(3, 11)
+   Candidate Move.UP, to=(2, 11), topology=655, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=1, safe_area=0, worst_utility=1000000, final=1000900
+   Candidate Move.LEFT, to=(3, 10), topology=805, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=1, safe_area=0, worst_utility=1000000, final=1000900
+   Candidate Move.RIGHT, to=(3, 12), topology=830, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(3, 14), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
+   Candidate Move.STAY, to=(3, 11), topology=2000, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=0, safe_area=0, worst_utility=1000000, final=1005200
+   Chosen move=Move.UP, from=(3, 11), to=(2, 11), score=1000900
+   Cache sizes: sim=1431, bfs=38, capture=587
+[STEP] move=Move.UP, time=1289.357 ms
+[PANIC] Pacman=(3, 13), Ghost(2, 11)
+   Move.UP to Position=(1, 11), Distance=4
+   Move.DOWN to Position=(3, 11), Distance=2
+   Move.STAY to Position=(2, 11), Distance=3
+   Final Move=Move.UP, Position=(2, 11)
+[STEP] move=Move.UP, time=6.223 ms
+[PANIC] Pacman=(3, 11), Ghost(1, 11)
+   Move.DOWN to Position=(2, 11), Distance=1
+   Move.RIGHT to Position=(1, 12), Distance=3
+   Move.STAY to Position=(1, 11), Distance=2
+   Final Move=Move.RIGHT, Position=(1, 11)
+[STEP] move=Move.RIGHT, time=7.896 ms

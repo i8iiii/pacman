@@ -3,7 +3,6 @@ from collections import deque
 
 from . import core
 
-
 TOPOLOGY_WEIGHTS = {
    "dead_end": -1200,
    "corridor": 100,

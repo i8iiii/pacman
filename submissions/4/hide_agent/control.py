@@ -25,6 +25,8 @@ SAFE_AREA_BONUS = 180
 LOW_SAFE_AREA_PENALTY = 1200
 MIN_SAFE_AREA = 4
 
+SIMULATION_DEPTH = 2
+
 try:
    from debug import debug
 except Exception:
@@ -40,6 +42,107 @@ def log(message: str) -> None:
    except Exception:
       pass
 
+def cached_bfs_distances(
+   start: tuple[int, int],
+   map_state,
+   distance_cache: dict,
+) -> dict:
+   if start not in distance_cache:
+      distance_cache[start] = core.bfs_distances(start, map_state)
+
+   return distance_cache[start]
+
+
+def cached_capture_turn_distance(
+   pacman_pos: tuple[int, int],
+   ghost_pos: tuple[int, int],
+   map_state,
+   pacman_speed: int,
+   capture_cache: dict,
+) -> int:
+   key = (pacman_pos, ghost_pos, pacman_speed)
+
+   if key not in capture_cache:
+      capture_cache[key] = core.capture_turn_distance(
+         pacman_pos,
+         ghost_pos,
+         map_state,
+         pacman_speed,
+      )
+
+   return capture_cache[key]
+
+
+def simulate_pacman_turn(
+   pacman_pos: tuple[int, int],
+   ghost_pos: tuple[int, int],
+   map_state,
+   topology_map: dict,
+   pacman_speed: int,
+   depth: int,
+   cache: dict,
+   distance_cache: dict,
+   capture_cache: dict,
+) -> float:
+   """
+   Pacman moves next.
+   Pacman chooses the action that gives the highest Pacman utility.
+   """
+
+   if core.is_capture(pacman_pos, ghost_pos):
+      return CAPTURE_SCORE
+
+   key = ("P", pacman_pos, ghost_pos, depth)
+   if key in cache:
+      return cache[key]
+
+   if depth <= 0:
+      value = evaluate_pacman_utility(
+         pacman_pos,
+         ghost_pos,
+         map_state,
+         pacman_speed,
+         topology_map,
+         distance_cache,
+         capture_cache,
+      )
+      cache[key] = value
+      return value
+
+   best_utility = -core.INF
+
+   for pacman_action in core.legal_pacman_actions(
+      pacman_pos,
+      map_state,
+      pacman_speed,
+      allow_stay=False,
+   ):
+      new_pacman_pos = core.apply_pacman_action(
+         pacman_pos,
+         pacman_action,
+         map_state,
+      )
+
+      if core.is_capture(new_pacman_pos, ghost_pos):
+         utility = CAPTURE_SCORE
+      else:
+         utility = simulate_ghost_turn(
+            new_pacman_pos,
+            ghost_pos,
+            map_state,
+            topology_map,
+            pacman_speed,
+            depth,
+            cache,
+            distance_cache,
+            capture_cache,
+         )
+
+      if utility > best_utility:
+         best_utility = utility
+
+   cache[key] = best_utility
+   return best_utility
 
 def evaluate_pacman_utility(
    pacman_pos: tuple[int, int],
@@ -47,6 +150,8 @@ def evaluate_pacman_utility(
    map_state,
    pacman_speed: int,
    topology_map: dict,
+   distance_cache: dict | None = None,
+   capture_cache: dict | None = None,
 ) -> float:
    """
    Higher score = better for Pacman.
@@ -56,14 +161,31 @@ def evaluate_pacman_utility(
    if core.is_capture(pacman_pos, ghost_pos):
       return CAPTURE_SCORE
 
-   capture_turns = core.capture_turn_distance(
-      pacman_pos,
-      ghost_pos,
-      map_state,
-      pacman_speed,
-   )
+   if capture_cache is None:
+      capture_turns = core.capture_turn_distance(
+         pacman_pos,
+         ghost_pos,
+         map_state,
+         pacman_speed,
+      )
+   else:
+      capture_turns = cached_capture_turn_distance(
+         pacman_pos,
+         ghost_pos,
+         map_state,
+         pacman_speed,
+         capture_cache,
+      )
 
-   pacman_distances = core.bfs_distances(pacman_pos, map_state)
+   if distance_cache is None:
+      pacman_distances = core.bfs_distances(pacman_pos, map_state)
+   else:
+      pacman_distances = cached_bfs_distances(
+         pacman_pos,
+         map_state,
+         distance_cache,
+      )
+
    maze_distance = pacman_distances.get(ghost_pos, core.INF)
 
    exits = core.exit_count(ghost_pos, map_state)
@@ -93,12 +215,79 @@ def evaluate_pacman_utility(
 
    return utility
 
+def simulate_ghost_turn(
+   pacman_pos: tuple[int, int],
+   ghost_pos: tuple[int, int],
+   map_state,
+   topology_map: dict,
+   pacman_speed: int,
+   depth: int,
+   cache: dict,
+   distance_cache: dict,
+   capture_cache: dict,
+) -> float:
+   """
+   Ghost moves next.
+   Ghost chooses the action that gives the lowest Pacman utility.
+   """
+
+   if core.is_capture(pacman_pos, ghost_pos):
+      return CAPTURE_SCORE
+
+   key = ("G", pacman_pos, ghost_pos, depth)
+   if key in cache:
+      return cache[key]
+
+   if depth <= 0:
+      value = evaluate_pacman_utility(
+         pacman_pos,
+         ghost_pos,
+         map_state,
+         pacman_speed,
+         topology_map,
+         distance_cache,
+         capture_cache,
+      )
+      cache[key] = value
+      return value
+
+   best_utility = core.INF
+
+   for ghost_move in core.legal_ghost_moves(ghost_pos, map_state):
+      new_ghost_pos = core.next_position(ghost_pos, ghost_move)
+
+      if not core.is_valid_position(new_ghost_pos, map_state):
+         continue
+
+      if core.is_capture(pacman_pos, new_ghost_pos):
+         utility = CAPTURE_SCORE
+      else:
+         utility = simulate_pacman_turn(
+            pacman_pos,
+            new_ghost_pos,
+            map_state,
+            topology_map,
+            pacman_speed,
+            depth - 1,
+            cache,
+            distance_cache,
+            capture_cache,
+         )
+
+      if utility < best_utility:
+         best_utility = utility
+
+   cache[key] = best_utility
+   return best_utility
+
+
 def predicted_safe_area(
    ghost_pos: tuple[int, int],
    pacman_pos: tuple[int, int],
    map_state,
    pacman_speed: int,
    max_depth: int = SAFE_AREA_DEPTH,
+   capture_cache: dict | None = None,
 ) -> int:
    """
    Count how much future escape space Ghost has after Pacman's predicted move.
@@ -118,12 +307,21 @@ def predicted_safe_area(
    while queue:
       current, ghost_steps = queue.popleft()
 
-      capture_turns = core.capture_turn_distance(
-         pacman_pos,
-         current,
-         map_state,
-         pacman_speed,
-      )
+      if capture_cache is None:
+         capture_turns = core.capture_turn_distance(
+            pacman_pos,
+            current,
+            map_state,
+            pacman_speed,
+         )
+      else:
+         capture_turns = cached_capture_turn_distance(
+            pacman_pos,
+            current,
+            map_state,
+            pacman_speed,
+            capture_cache,
+         )
 
       if capture_turns > ghost_steps + 1:
          safe_cells += 1
@@ -150,11 +348,14 @@ def choose_move(
    Ghost chooses the move that minimizes Pacman's best response.
    """
 
-   log("[CONTROL-ADV]")
+   log("[CONTROL-SIM]")
    log(f" Pacman={pacman_pos}, Ghost={ghost_pos}")
 
    candidates = []
    best_non_stay_capture_turns = -1
+   simulation_cache = {}
+   distance_cache = {}
+   capture_cache = {}
 
    for ghost_move in core.legal_ghost_moves(ghost_pos, map_state):
       new_ghost_pos = core.next_position(ghost_pos, ghost_move)
@@ -178,24 +379,32 @@ def choose_move(
                map_state,
          )
 
-         utility = evaluate_pacman_utility(
+         if core.is_capture(new_pacman_pos, new_ghost_pos):
+            utility = CAPTURE_SCORE
+         else:
+            utility = simulate_ghost_turn(
                new_pacman_pos,
                new_ghost_pos,
                map_state,
-               pacman_speed,
                topology_map,
-         )
+               pacman_speed,
+               SIMULATION_DEPTH,
+               simulation_cache,
+               distance_cache,
+               capture_cache,
+            )
 
          if utility > worst_utility:
                worst_utility = utility
                best_pacman_action = pacman_action
                best_pacman_pos = new_pacman_pos
 
-      response_capture_turns = core.capture_turn_distance(
+      response_capture_turns = cached_capture_turn_distance(
          best_pacman_pos,
          new_ghost_pos,
          map_state,
          pacman_speed,
+         capture_cache,
       )
 
       topo = 0
@@ -217,7 +426,9 @@ def choose_move(
          "capture_turns": response_capture_turns,
          "worst_utility": worst_utility,
       })
-
+   if not candidates:
+      return Move.STAY
+   
    best_move = Move.STAY
    best_position = ghost_pos
    best_final_score = core.INF
@@ -234,9 +445,10 @@ def choose_move(
          if candidate["capture_turns"] <= best_non_stay_capture_turns:
                final_score += LOST_TEMPO_PENALTY
 
-      pacman_distances = core.bfs_distances(
+      pacman_distances = cached_bfs_distances(
          candidate["pacman_position"],
          map_state,
+         distance_cache,
       )
 
       current_distance_after_pacman = pacman_distances.get(
@@ -265,6 +477,7 @@ def choose_move(
          candidate["pacman_position"],
          map_state,
          pacman_speed,
+         capture_cache=capture_cache,
       )
 
       final_score -= SAFE_AREA_BONUS * safe_area
@@ -289,7 +502,7 @@ def choose_move(
          f"capture_turns={candidate['capture_turns']}, "
          f"direction_delta={direction_delta}, "
          f"safe_area={safe_area}, "
-         f"reversal={reversal}, "
+         # f"reversal={reversal}, "
          f"worst_utility={candidate['worst_utility']}, "
          f"final={final_score}"
       )
@@ -304,6 +517,13 @@ def choose_move(
       f"from={ghost_pos}, "
       f"to={best_position}, "
       f"score={best_final_score}"
+   )
+
+   log(
+      f"   Cache sizes: "
+      f"sim={len(simulation_cache)}, "
+      f"bfs={len(distance_cache)}, "
+      f"capture={len(capture_cache)}"
    )
 
    return best_move

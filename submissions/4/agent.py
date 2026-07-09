@@ -12,7 +12,6 @@ import random
 import heapq
 from collections import deque
 
-
 class PacmanAgent(BasePacmanAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -463,6 +462,7 @@ from hide_agent import panic
 from debug import debug
 from hide_agent import topology
 from hide_agent import control
+from time import perf_counter
 
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
@@ -478,6 +478,7 @@ class GhostAgent(BaseGhostAgent):
         debug.log("- - AGENT INITIALIZED - -")
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
+        start = perf_counter()
         map_state = np.asarray(map_state)
 
         if self.topology_map is None:
@@ -493,6 +494,7 @@ class GhostAgent(BaseGhostAgent):
         if not isinstance(move, Move):
             return Move.STAY
 
+        debug.log(f"[STEP] move={move}, time={(perf_counter() - start) * 1000:.3f} ms")
         return move
 
     def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2):
