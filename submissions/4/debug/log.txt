@@ -1,119 +1,137 @@
 === DEBUG LOG ===
-Started: 2026-07-10 01:24:59.980287
+Started: 2026-07-10 16:22:12.519836
 
 - - AGENT INITIALIZED - -
-[CONTROL-SIM]
- Pacman=(13, 4), Ghost=(9, 14)
-   Candidate Move.LEFT, to=(9, 13), topology=2400, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=6, direction_delta=-1, safe_area=22, worst_utility=-6517.5, final=-9577.5
-   Candidate Move.RIGHT, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=7, direction_delta=1, safe_area=22, worst_utility=-6517.5, final=-10777.5
-   Candidate Move.STAY, to=(9, 14), topology=955, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(13, 5), capture_turns=6, direction_delta=0, safe_area=22, worst_utility=-6517.5, final=-8977.5
-   Chosen move=Move.RIGHT, from=(9, 14), to=(9, 15), score=-10777.5
-   Cache sizes: sim=1187, bfs=23, capture=523
-[STEP] move=Move.RIGHT, time=1007.528 ms
-[CONTROL-SIM]
- Pacman=(13, 5), Ghost=(9, 15)
-   Candidate Move.UP, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=19, worst_utility=-7082.5, final=-10802.5
-   Candidate Move.DOWN, to=(10, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 7), capture_turns=6, direction_delta=1, safe_area=17, worst_utility=-5038.0, final=-8398.0
-   Candidate Move.LEFT, to=(9, 14), topology=955, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=5, direction_delta=-1, safe_area=22, worst_utility=-5038.0, final=-8098.0
-   Candidate Move.RIGHT, to=(9, 16), topology=730, pacman_best=(<Move.UP: (-1, 0)>, 2)->(11, 5), capture_turns=6, direction_delta=1, safe_area=15, worst_utility=-5509.75, final=-8509.75
-   Candidate Move.STAY, to=(9, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(13, 7), capture_turns=6, direction_delta=0, safe_area=19, worst_utility=-5081.5, final=-7001.5
-   Chosen move=Move.UP, from=(9, 15), to=(8, 15), score=-10802.5
-   Cache sizes: sim=2020, bfs=39, capture=843
-[STEP] move=Move.UP, time=1676.815 ms
-[CONTROL-SIM]
- Pacman=(11, 5), Ghost=(8, 15)
-   Candidate Move.UP, to=(7, 15), topology=685, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=6, direction_delta=1, safe_area=17, worst_utility=-5802.5, final=-9162.5
-   Candidate Move.DOWN, to=(9, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=-1, safe_area=19, worst_utility=2993.5, final=473.5
-   Candidate Move.STAY, to=(8, 15), topology=880, pacman_best=(<Move.UP: (-1, 0)>, 2)->(9, 5), capture_turns=5, direction_delta=0, safe_area=18, worst_utility=-5802.5, final=-5042.5
-   Chosen move=Move.UP, from=(8, 15), to=(7, 15), score=-9162.5
-   Cache sizes: sim=1390, bfs=36, capture=666
-[STEP] move=Move.UP, time=1392.217 ms
-[CONTROL-SIM]
- Pacman=(9, 5), Ghost=(7, 15)
-   Candidate Move.UP, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=5, direction_delta=1, safe_area=15, worst_utility=-6517.5, final=-9517.5
-   Candidate Move.DOWN, to=(8, 15), topology=880, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=4, direction_delta=-1, safe_area=13, worst_utility=2277.5, final=837.5
-   Candidate Move.STAY, to=(7, 15), topology=685, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 7), capture_turns=5, direction_delta=0, safe_area=12, worst_utility=2277.5, final=4117.5
-   Chosen move=Move.UP, from=(7, 15), to=(6, 15), score=-9517.5
-   Cache sizes: sim=1329, bfs=38, capture=588
-[STEP] move=Move.UP, time=1300.989 ms
-[CONTROL-SIM]
- Pacman=(9, 7), Ghost=(6, 15)
-   Candidate Move.UP, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=5, direction_delta=1, safe_area=20, worst_utility=1562.5, final=-2337.5
-   Candidate Move.DOWN, to=(7, 15), topology=685, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=-1, safe_area=8, worst_utility=8357.5, final=7817.5
-   Candidate Move.STAY, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 9), capture_turns=4, direction_delta=0, safe_area=15, worst_utility=1562.5, final=2862.5
-   Chosen move=Move.UP, from=(6, 15), to=(5, 15), score=-2337.5
-   Cache sizes: sim=1416, bfs=40, capture=657
-[STEP] move=Move.UP, time=1257.272 ms
-[CONTROL-SIM]
- Pacman=(9, 9), Ghost=(5, 15)
-   Candidate Move.UP, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=1, safe_area=19, worst_utility=2275.0, final=-1445.0
-   Candidate Move.DOWN, to=(6, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=3, direction_delta=-1, safe_area=7, worst_utility=7642.5, final=7282.5
-   Candidate Move.RIGHT, to=(5, 16), topology=680, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=1, safe_area=9, worst_utility=3064.5, final=1144.5
-   Candidate Move.STAY, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 11), capture_turns=4, direction_delta=0, safe_area=14, worst_utility=7642.5, final=9122.5
-   Chosen move=Move.UP, from=(5, 15), to=(4, 15), score=-1445.0
-   Cache sizes: sim=1186, bfs=31, capture=541
-[STEP] move=Move.UP, time=1301.840 ms
-[CONTROL-SIM]
- Pacman=(9, 11), Ghost=(4, 15)
-   Candidate Move.UP, to=(3, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=4, direction_delta=1, safe_area=16, worst_utility=8355.0, final=5175.0
-   Candidate Move.DOWN, to=(5, 15), topology=2050, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=-1, safe_area=5, worst_utility=29722.5, final=29722.5
-   Candidate Move.STAY, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 13), capture_turns=3, direction_delta=0, safe_area=9, worst_utility=8355.0, final=10735.0
-   Chosen move=Move.UP, from=(4, 15), to=(3, 15), score=5175.0
-   Cache sizes: sim=1331, bfs=31, capture=631
-[STEP] move=Move.UP, time=1466.870 ms
-[CONTROL-SIM]
- Pacman=(9, 13), Ghost=(3, 15)
-   Candidate Move.UP, to=(2, 15), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=7, worst_utility=9139.5, final=7579.5
-   Candidate Move.DOWN, to=(4, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=2, direction_delta=-1, safe_area=2, worst_utility=30435.0, final=32175.0
-   Candidate Move.LEFT, to=(3, 14), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=7, worst_utility=8360.0, final=6800.0
-   Candidate Move.RIGHT, to=(3, 16), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=1, safe_area=5, worst_utility=8373.75, final=7173.75
-   Candidate Move.STAY, to=(3, 15), topology=2350, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(9, 15), capture_turns=3, direction_delta=0, safe_area=7, worst_utility=30435.0, final=33175.0
-   Chosen move=Move.LEFT, from=(3, 15), to=(3, 14), score=6800.0
-   Cache sizes: sim=2227, bfs=40, capture=923
-[STEP] move=Move.LEFT, time=1935.552 ms
-[CONTROL-SIM]
- Pacman=(9, 15), Ghost=(3, 14)
-   Candidate Move.LEFT, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=3, direction_delta=1, safe_area=5, worst_utility=30440.0, final=29240.0
-   Candidate Move.RIGHT, to=(3, 15), topology=2350, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=2, direction_delta=-1, safe_area=1, worst_utility=500515.0, final=502435.0
-   Candidate Move.STAY, to=(3, 14), topology=930, pacman_best=(<Move.UP: (-1, 0)>, 2)->(7, 15), capture_turns=2, direction_delta=0, safe_area=2, worst_utility=30440.0, final=35280.0
-   Chosen move=Move.LEFT, from=(3, 14), to=(3, 13), score=29240.0
-   Cache sizes: sim=1774, bfs=38, capture=789
-[STEP] move=Move.LEFT, time=1570.915 ms
-[CONTROL-SIM]
- Pacman=(7, 15), Ghost=(3, 13)
-   Candidate Move.DOWN, to=(4, 13), topology=755, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=1, safe_area=2, worst_utility=31220.75, final=31760.75
-   Candidate Move.LEFT, to=(3, 12), topology=830, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=1, safe_area=2, worst_utility=30440.0, final=30980.0
-   Candidate Move.RIGHT, to=(3, 14), topology=930, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
-   Candidate Move.STAY, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(5, 15), capture_turns=2, direction_delta=0, safe_area=1, worst_utility=500520.0, final=505540.0
-   Chosen move=Move.LEFT, from=(3, 13), to=(3, 12), score=30980.0
-   Cache sizes: sim=1283, bfs=33, capture=583
-[STEP] move=Move.LEFT, time=1281.859 ms
-[CONTROL-SIM]
- Pacman=(5, 15), Ghost=(3, 12)
-   Candidate Move.LEFT, to=(3, 11), topology=2000, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=2, direction_delta=1, safe_area=1, worst_utility=500520.0, final=501240.0
-   Candidate Move.RIGHT, to=(3, 13), topology=2100, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
-   Candidate Move.STAY, to=(3, 12), topology=830, pacman_best=(<Move.UP: (-1, 0)>, 2)->(3, 15), capture_turns=1, direction_delta=0, safe_area=0, worst_utility=1000000, final=1005200
-   Chosen move=Move.LEFT, from=(3, 12), to=(3, 11), score=501240.0
-   Cache sizes: sim=1186, bfs=34, capture=540
-[STEP] move=Move.LEFT, time=1051.579 ms
-[CONTROL-SIM]
- Pacman=(3, 15), Ghost=(3, 11)
-   Candidate Move.UP, to=(2, 11), topology=655, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=1, safe_area=0, worst_utility=1000000, final=1000900
-   Candidate Move.LEFT, to=(3, 10), topology=805, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=1, safe_area=0, worst_utility=1000000, final=1000900
-   Candidate Move.RIGHT, to=(3, 12), topology=830, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(3, 14), capture_turns=1, direction_delta=-1, safe_area=0, worst_utility=1000000, final=1002100
-   Candidate Move.STAY, to=(3, 11), topology=2000, pacman_best=(<Move.LEFT: (0, -1)>, 2)->(3, 13), capture_turns=1, direction_delta=0, safe_area=0, worst_utility=1000000, final=1005200
-   Chosen move=Move.UP, from=(3, 11), to=(2, 11), score=1000900
-   Cache sizes: sim=1431, bfs=38, capture=587
-[STEP] move=Move.UP, time=1289.357 ms
-[PANIC] Pacman=(3, 13), Ghost(2, 11)
-   Move.UP to Position=(1, 11), Distance=4
-   Move.DOWN to Position=(3, 11), Distance=2
-   Move.STAY to Position=(2, 11), Distance=3
-   Final Move=Move.UP, Position=(2, 11)
-[STEP] move=Move.UP, time=6.223 ms
-[PANIC] Pacman=(3, 11), Ghost(1, 11)
-   Move.DOWN to Position=(2, 11), Distance=1
-   Move.RIGHT to Position=(1, 12), Distance=3
-   Move.STAY to Position=(1, 11), Distance=2
-   Final Move=Move.RIGHT, Position=(1, 11)
-[STEP] move=Move.RIGHT, time=7.896 ms
+[CONTROL-SIM] Pacman=(4, 5), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=14, manhattan=14, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=5, scored_safe_area=5, future_merit=False, meritless_approach=True, worst_utility=-7129.5, final=-7129.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=14, manhattan=14, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=4, scored_safe_area=4, future_merit=False, meritless_approach=True, worst_utility=-7129.5, final=-5749.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=15, manhattan=15, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=7, scored_safe_area=5, future_merit=False, meritless_approach=False, worst_utility=-7129.5, final=-6529.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=-6529.5
+   Cache sizes: sim=304, bfs=20, capture=143
+[STEP] move=Move.STAY, time=0.319 s
+
+
+[CONTROL-SIM] Pacman=(4, 7), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=12, manhattan=12, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=4, scored_safe_area=4, future_merit=False, meritless_approach=True, worst_utility=-5849.5, final=-4469.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=12, manhattan=12, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=-5849.5, final=-4289.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=13, manhattan=13, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=7, scored_safe_area=4, future_merit=False, meritless_approach=False, worst_utility=-5849.5, final=-3869.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=-3869.5
+   Cache sizes: sim=276, bfs=19, capture=136
+[STEP] move=Move.STAY, time=0.270 s
+
+
+[CONTROL-SIM] Pacman=(4, 9), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=2230.5, final=3790.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=2230.5, final=3790.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=11, manhattan=11, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=5, scored_safe_area=3, future_merit=False, meritless_approach=False, worst_utility=2230.5, final=6890.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=6890.5
+   Cache sizes: sim=240, bfs=16, capture=115
+[STEP] move=Move.STAY, time=0.244 s
+
+
+[CONTROL-SIM] Pacman=(4, 11), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=4, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8310.5, final=13150.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13150.5
+   Cache sizes: sim=240, bfs=16, capture=112
+[STEP] move=Move.STAY, time=0.214 s
+
+
+[CONTROL-SIM] Pacman=(4, 12), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=4, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8310.5, final=13150.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13150.5
+   Cache sizes: sim=188, bfs=13, capture=91
+[STEP] move=Move.STAY, time=0.178 s
+
+
+[CONTROL-SIM] Pacman=(4, 14), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 16), capture_turns=3, maze_distance=5, manhattan=5, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=8390.5, final=10310.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 15), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8350.5, final=10090.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 15), capture_turns=3, maze_distance=7, manhattan=7, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8350.5, final=13190.5
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13190.5
+   Cache sizes: sim=211, bfs=15, capture=104
+[STEP] move=Move.STAY, time=0.251 s
+
+
+[CONTROL-SIM] Pacman=(4, 15), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 17), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30430.5, final=32350.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 15), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30384.5, final=32304.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 17), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=1, future_merit=False, meritless_approach=False, worst_utility=8382.0, final=13402.0
+   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13402.0
+   Cache sizes: sim=299, bfs=20, capture=136
+[STEP] move=Move.STAY, time=0.263 s
+
+
+[CONTROL-SIM] Pacman=(4, 16), Ghost=(1, 19)
+   Shared safe-area depth=3
+   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 17), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30430.5, final=32350.5
+   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(4, 15), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=8350.5, final=10090.5
+   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 17), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8382.0, final=13222.0
+   Chosen move=Move.LEFT, from=(1, 19), to=(1, 18), score=10090.5
+   Cache sizes: sim=172, bfs=12, capture=81
+[STEP] move=Move.LEFT, time=0.163 s
+
+
+[CONTROL-SIM] Pacman=(4, 18), Ghost=(1, 18)
+   Shared safe-area depth=3
+   Candidate Move.LEFT, to=(1, 17), topology=360, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(4, 17), capture_turns=4, maze_distance=7, manhattan=3, direction_delta=1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=8350.5, final=10090.5
+   Candidate Move.RIGHT, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 19), capture_turns=1, maze_distance=3, manhattan=3, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=0, scored_safe_area=0, future_merit=False, meritless_approach=True, worst_utility=30462.0, final=32562.0
+   Candidate Move.STAY, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 19), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=30413.5, final=35253.5
+   Chosen move=Move.LEFT, from=(1, 18), to=(1, 17), score=10090.5
+   Cache sizes: sim=135, bfs=10, capture=64
+[STEP] move=Move.LEFT, time=0.152 s
+
+
+[CONTROL-SIM] Pacman=(4, 19), Ghost=(1, 17)
+   Shared safe-area depth=3
+   Candidate Move.LEFT, to=(1, 16), topology=530, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=1, manhattan_delta=1, is_approach=False, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=30046.25, final=30586.25
+   Candidate Move.RIGHT, to=(1, 18), topology=190, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=1, maze_distance=3, manhattan=3, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=0, scored_safe_area=0, future_merit=False, meritless_approach=True, worst_utility=500453.5, final=502553.5
+   Candidate Move.STAY, to=(1, 17), topology=360, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=1, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=30046.25, final=34886.25
+   Chosen move=Move.LEFT, from=(1, 17), to=(1, 16), score=30586.25
+   Cache sizes: sim=194, bfs=12, capture=90
+[STEP] move=Move.LEFT, time=0.186 s
+
+
+[PANIC] Pacman=(2, 19), Ghost(1, 16)
+   Move.LEFT to Position=(1, 15), Distance=5
+   Move.RIGHT to Position=(1, 17), Distance=3
+   Move.STAY to Position=(1, 16), Distance=4
+   Final Move=Move.LEFT, Position=(1, 16)
+[STEP] move=Move.LEFT, time=0.007 s
+
+
+[PANIC] Pacman=(1, 19), Ghost(1, 15)
+   Move.DOWN to Position=(2, 15), Distance=5
+   Move.LEFT to Position=(1, 14), Distance=5
+   Move.RIGHT to Position=(1, 16), Distance=3
+   Move.STAY to Position=(1, 15), Distance=4
+   Final Move=Move.DOWN, Position=(1, 15)
+[STEP] move=Move.DOWN, time=0.007 s
+
+
+[PANIC] Pacman=(1, 17), Ghost(2, 15)
+   Move.UP to Position=(1, 15), Distance=2
+   Move.DOWN to Position=(3, 15), Distance=4
+   Move.STAY to Position=(2, 15), Distance=3
+   Final Move=Move.DOWN, Position=(2, 15)
+[STEP] move=Move.DOWN, time=0.008 s
+
+
+[PANIC] Pacman=(1, 15), Ghost(3, 15)
+   Move.UP to Position=(2, 15), Distance=1
+   Move.DOWN to Position=(4, 15), Distance=3
+   Move.STAY to Position=(3, 15), Distance=2
+   Final Move=Move.DOWN, Position=(3, 15)
+[STEP] move=Move.DOWN, time=0.008 s
+
+

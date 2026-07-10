@@ -8,7 +8,7 @@ CAPTURE_SCORE = 1_000_000
 
 W_CAPTURE_TURNS = 1200
 W_MAZE_DISTANCE = 40
-W_TRAP = 700
+W_TRAP = 300
 W_TOPOLOGY = 0.05
 
 STAY_PENALTY = 200
@@ -20,18 +20,28 @@ REVERSAL_PENALTY = 0
 APPROACH_PENALTY = 900
 AWAY_BONUS = 300
 
-SAFE_AREA_DEPTH = 5
 SAFE_AREA_BONUS = 180
 LOW_SAFE_AREA_PENALTY = 1200
 MIN_SAFE_AREA = 4
 
 SIMULATION_DEPTH = 2
+SAFE_AREA_DEPTH = 3
+__TIMEOUT__ = 850
 
-try:
-   from debug import debug
-except Exception:
-   debug = None
+from debug import debug
+from time import perf_counter
 
+__START__ = 0.0
+
+def reset_timer():
+   global __START__
+   __START__ = perf_counter()
+
+def get_run_time():
+   return (perf_counter() - __START__) * 1000
+
+def timed_out() -> bool:
+   return get_run_time() >= __TIMEOUT__
 
 def log(message: str) -> None:
    if debug is None:
@@ -96,7 +106,7 @@ def simulate_pacman_turn(
    if key in cache:
       return cache[key]
 
-   if depth <= 0:
+   if depth <= 0 or timed_out():
       value = evaluate_pacman_utility(
          pacman_pos,
          ghost_pos,
@@ -106,7 +116,8 @@ def simulate_pacman_turn(
          distance_cache,
          capture_cache,
       )
-      cache[key] = value
+      if not timed_out():
+         cache[key] = value
       return value
 
    best_utility = -core.INF
@@ -238,7 +249,7 @@ def simulate_ghost_turn(
    if key in cache:
       return cache[key]
 
-   if depth <= 0:
+   if depth <= 0 or timed_out():
       value = evaluate_pacman_utility(
          pacman_pos,
          ghost_pos,
@@ -248,7 +259,8 @@ def simulate_ghost_turn(
          distance_cache,
          capture_cache,
       )
-      cache[key] = value
+      if not timed_out():
+         cache[key] = value
       return value
 
    best_utility = core.INF
@@ -280,29 +292,24 @@ def simulate_ghost_turn(
    cache[key] = best_utility
    return best_utility
 
-
 def predicted_safe_area(
    ghost_pos: tuple[int, int],
    pacman_pos: tuple[int, int],
    map_state,
    pacman_speed: int,
-   max_depth: int = SAFE_AREA_DEPTH,
+   max_depth: int,
    capture_cache: dict | None = None,
+   blocked_pos: tuple[int, int] | None = None,
 ) -> int:
-   """
-   Count how much future escape space Ghost has after Pacman's predicted move.
-
-   A cell is considered useful if Ghost can reach it before Pacman can
-   threaten its capture zone.
-   """
-
    if not core.is_valid_position(ghost_pos, map_state):
       return 0
 
    safe_cells = 0
-
    queue = deque([(ghost_pos, 0)])
    visited = {ghost_pos}
+
+   if blocked_pos is not None:
+      visited.add(blocked_pos)
 
    while queue:
       current, ghost_steps = queue.popleft()
@@ -323,8 +330,11 @@ def predicted_safe_area(
             capture_cache,
          )
 
-      if capture_turns > ghost_steps + 1:
-         safe_cells += 1
+      # Do not count or travel through an unsafe cell.
+      if capture_turns <= ghost_steps + 1:
+         continue
+
+      safe_cells += 1
 
       if ghost_steps >= max_depth:
          continue
@@ -348,8 +358,7 @@ def choose_move(
    Ghost chooses the move that minimizes Pacman's best response.
    """
 
-   log("[CONTROL-SIM]")
-   log(f" Pacman={pacman_pos}, Ghost={ghost_pos}")
+   log(f"[CONTROL-SIM] Pacman={pacman_pos}, Ghost={ghost_pos}")
 
    candidates = []
    best_non_stay_capture_turns = -1
@@ -433,17 +442,74 @@ def choose_move(
    best_position = ghost_pos
    best_final_score = core.INF
 
+   remaining_ms = max(0, __TIMEOUT__ - get_run_time())
+
+   if remaining_ms < 30:
+      safe_area_depth = 1
+   elif remaining_ms < 80:
+      safe_area_depth = min(2, SAFE_AREA_DEPTH)
+   else:
+      safe_area_depth = SAFE_AREA_DEPTH
+
+   log(f"   Shared safe-area depth={safe_area_depth}")
+
+   best_rank = None
+
+   # Calculate every candidate's raw safe area once.
+   for candidate in candidates:
+      blocked_pos = None
+
+      if candidate["move"] != Move.STAY:
+         blocked_pos = ghost_pos
+
+      candidate["safe_area"] = predicted_safe_area(
+         candidate["position"],
+         candidate["pacman_position"],
+         map_state,
+         pacman_speed,
+         max_depth=safe_area_depth,
+         capture_cache=capture_cache,
+         blocked_pos=blocked_pos,
+      )
+
+   stay_candidate = next(
+      candidate
+      for candidate in candidates
+      if candidate["move"] == Move.STAY
+   )
+
+   stay_safe_area = stay_candidate["safe_area"]
+
+   moving_safe_areas = [
+      candidate["safe_area"]
+      for candidate in candidates
+      if candidate["move"] != Move.STAY
+   ]
+
+   best_moving_safe_area = max(
+      moving_safe_areas,
+      default=stay_safe_area,
+   )
+
    for candidate in candidates:
       final_score = candidate["worst_utility"]
 
       if candidate["move"] == Move.STAY:
          final_score += STAY_PENALTY
 
-         if candidate["capture_turns"] <= 5:
-               final_score += DANGER_STAY_PENALTY
+         stay_not_safer = (
+            candidate["capture_turns"]
+            <= best_non_stay_capture_turns
+         )
 
-         if candidate["capture_turns"] <= best_non_stay_capture_turns:
-               final_score += LOST_TEMPO_PENALTY
+         if (
+            candidate["capture_turns"] <= 5
+            and stay_not_safer
+         ):
+            final_score += DANGER_STAY_PENALTY
+
+         if stay_not_safer:
+            final_score += LOST_TEMPO_PENALTY
 
       pacman_distances = cached_bfs_distances(
          candidate["pacman_position"],
@@ -466,52 +532,114 @@ def choose_move(
          - current_distance_after_pacman
       )
 
-      if direction_delta < 0:
-         final_score += APPROACH_PENALTY * abs(direction_delta)
-
-      elif direction_delta > 0:
-         final_score -= AWAY_BONUS * min(direction_delta, 2)
-
-      safe_area = predicted_safe_area(
-         candidate["position"],
+      current_manhattan_after_pacman = core.manhattan(
          candidate["pacman_position"],
-         map_state,
-         pacman_speed,
-         capture_cache=capture_cache,
+         ghost_pos,
       )
 
-      final_score -= SAFE_AREA_BONUS * safe_area
+      candidate_manhattan_after_pacman = core.manhattan(
+         candidate["pacman_position"],
+         candidate["position"],
+      )
 
-      if safe_area < MIN_SAFE_AREA:
+      manhattan_delta = (
+         candidate_manhattan_after_pacman
+         - current_manhattan_after_pacman
+      )
+
+      is_approach = (
+         direction_delta < 0
+         or manhattan_delta < 0
+      )
+
+      is_away = (
+         direction_delta > 0
+         and manhattan_delta > 0
+      )
+
+      if is_approach:
+         final_score += APPROACH_PENALTY
+
+      elif is_away:
+         final_score -= AWAY_BONUS * min(
+            direction_delta,
+            manhattan_delta,
+            2,
+         )
+
+      safe_area = candidate["safe_area"]
+
+      # STAY must not receive the union of all branches as its score.
+      if candidate["move"] == Move.STAY:
+         scored_safe_area = best_moving_safe_area
+      else:
+         scored_safe_area = safe_area
+
+      # Apply safe-area scoring exactly once.
+      final_score -= SAFE_AREA_BONUS * scored_safe_area
+
+      if scored_safe_area <= MIN_SAFE_AREA:
          final_score += LOW_SAFE_AREA_PENALTY
 
-      reversal = (
-         candidate["move"] != Move.STAY
-         and previous_position is not None
-         and candidate["position"] == previous_position
+      has_future_merit = (
+         candidate["capture_turns"]
+         > stay_candidate["capture_turns"]
+         or safe_area > stay_safe_area
+         or candidate["worst_utility"]
+         < stay_candidate["worst_utility"]
       )
 
-      if reversal:
-         final_score += REVERSAL_PENALTY
+      meritless_approach = (
+         candidate["move"] != Move.STAY
+         and is_approach
+         and not has_future_merit
+      )
+
+      candidate_maze_distance = pacman_distances.get(
+         candidate["position"],
+         -core.INF,
+      )
+
+      candidate_manhattan = core.manhattan(
+         candidate["pacman_position"],
+         candidate["position"],
+      )
+
+      candidate_rank = (
+         1 if meritless_approach else 0,
+         final_score,
+         -candidate["capture_turns"],
+         -scored_safe_area,
+         -candidate_maze_distance,
+         -candidate_manhattan,
+         -candidate["topology"],
+      )
 
       log(
          f"   Candidate {candidate['move']}, "
          f"to={candidate['position']}, "
          f"topology={candidate['topology']}, "
-         f"pacman_best={candidate['pacman_action']}->{candidate['pacman_position']}, "
+         f"pacman_best={candidate['pacman_action']}"
+         f"->{candidate['pacman_position']}, "
          f"capture_turns={candidate['capture_turns']}, "
+         f"maze_distance={candidate_maze_distance}, "
+         f"manhattan={candidate_manhattan}, "
          f"direction_delta={direction_delta}, "
+         f"manhattan_delta={manhattan_delta}, "
+         f"is_approach={is_approach}, "
          f"safe_area={safe_area}, "
-         # f"reversal={reversal}, "
+         f"scored_safe_area={scored_safe_area}, "
+         f"future_merit={has_future_merit}, "
+         f"meritless_approach={meritless_approach}, "
          f"worst_utility={candidate['worst_utility']}, "
          f"final={final_score}"
       )
 
-      if final_score < best_final_score:
+      if best_rank is None or candidate_rank < best_rank:
+         best_rank = candidate_rank
          best_final_score = final_score
          best_move = candidate["move"]
          best_position = candidate["position"]
-
    log(
       f"   Chosen move={best_move}, "
       f"from={ghost_pos}, "

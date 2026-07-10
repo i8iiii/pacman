@@ -462,7 +462,7 @@ from hide_agent import panic
 from debug import debug
 from hide_agent import topology
 from hide_agent import control
-from time import perf_counter
+
 
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
@@ -474,11 +474,12 @@ class GhostAgent(BaseGhostAgent):
         self.pacman_speed = 2
         self.topology_map = None
         self.previous_position = None
+
         debug.clear_log()
         debug.log("- - AGENT INITIALIZED - -")
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
-        start = perf_counter()
+        control.reset_timer()
         map_state = np.asarray(map_state)
 
         if self.topology_map is None:
@@ -494,7 +495,7 @@ class GhostAgent(BaseGhostAgent):
         if not isinstance(move, Move):
             return Move.STAY
 
-        debug.log(f"[STEP] move={move}, time={(perf_counter() - start) * 1000:.3f} ms")
+        debug.log(f"[STEP] move={move}, time={control.get_run_time() / 1000:.3f} s\n\n")
         return move
 
     def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2):

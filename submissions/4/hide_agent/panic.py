@@ -17,7 +17,7 @@ from .core import (
    dead_end_depth,
 )
 
-PANIC_TURNS = 1
+PANIC_TURNS = 2
 
 def should_panic(
    pacman_pos: tuple[int, int],
