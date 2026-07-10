@@ -1,137 +1,121 @@
 === DEBUG LOG ===
-Started: 2026-07-10 16:22:12.519836
+Started: 2026-07-10 17:55:23.591263
 
 - - AGENT INITIALIZED - -
-[CONTROL-SIM] Pacman=(4, 5), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(12, 5), Ghost=(12, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=14, manhattan=14, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=5, scored_safe_area=5, future_merit=False, meritless_approach=True, worst_utility=-7129.5, final=-7129.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=14, manhattan=14, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=4, scored_safe_area=4, future_merit=False, meritless_approach=True, worst_utility=-7129.5, final=-5749.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 7), capture_turns=7, maze_distance=15, manhattan=15, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=7, scored_safe_area=5, future_merit=False, meritless_approach=False, worst_utility=-7129.5, final=-6529.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=-6529.5
-   Cache sizes: sim=304, bfs=20, capture=143
-[STEP] move=Move.STAY, time=0.319 s
+   Candidate Move.UP, to=(11, 15), topology=830, pacman_best=(<Move.UP: (-1, 0)>, 2)->(10, 5), capture_turns=7, maze_distance=15, manhattan=11, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=True, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=8, scored_safe_area=8, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7792.5, final=-9232.5
+   Candidate Move.DOWN, to=(13, 15), topology=905, pacman_best=(<Move.UP: (-1, 0)>, 2)->(10, 5), capture_turns=7, maze_distance=15, manhattan=13, direction_delta=-1, manhattan_delta=1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=True, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=8, scored_safe_area=8, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7798.75, final=-9238.75
+   Candidate Move.STAY, to=(12, 15), topology=710, pacman_best=(<Move.UP: (-1, 0)>, 2)->(10, 5), capture_turns=8, maze_distance=16, manhattan=12, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=11, scored_safe_area=8, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7798.75, final=-9038.75
+   Chosen move=Move.DOWN, from=(12, 15), to=(13, 15), score=-9238.75
+   Cache sizes: sim=304, bfs=17, capture=193
+[STEP] move=Move.DOWN, time=0.510 s
 
 
-[CONTROL-SIM] Pacman=(4, 7), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(10, 5), Ghost=(13, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=12, manhattan=12, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=4, scored_safe_area=4, future_merit=False, meritless_approach=True, worst_utility=-5849.5, final=-4469.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=12, manhattan=12, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=-5849.5, final=-4289.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 9), capture_turns=6, maze_distance=13, manhattan=13, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=7, scored_safe_area=4, future_merit=False, meritless_approach=False, worst_utility=-5849.5, final=-3869.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=-3869.5
-   Cache sizes: sim=276, bfs=19, capture=136
-[STEP] move=Move.STAY, time=0.270 s
+   Candidate Move.UP, to=(12, 15), topology=710, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(10, 7), capture_turns=7, maze_distance=14, manhattan=10, direction_delta=1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=True, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=6, scored_safe_area=6, capture_improved=True, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=True, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7115.5, final=-8195.5
+   Candidate Move.DOWN, to=(14, 15), topology=2375, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(10, 7), capture_turns=6, maze_distance=12, manhattan=12, direction_delta=-1, manhattan_delta=1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=True, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=11, scored_safe_area=11, capture_improved=False, safe_area_improved=False, utility_improved=True, utility_supported=True, future_merit=True, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7485.0, final=-9465.0
+   Candidate Move.STAY, to=(13, 15), topology=905, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(10, 7), capture_turns=6, maze_distance=13, manhattan=11, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=False, stay_is_valid_alternative=False, safe_area=11, scored_safe_area=11, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-7115.5, final=-7595.5
+   Chosen move=Move.DOWN, from=(13, 15), to=(14, 15), score=-9465.0
+   Cache sizes: sim=422, bfs=19, capture=217
+[STEP] move=Move.DOWN, time=0.551 s
 
 
-[CONTROL-SIM] Pacman=(4, 9), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(10, 7), Ghost=(14, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=2230.5, final=3790.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=3, scored_safe_area=3, future_merit=False, meritless_approach=True, worst_utility=2230.5, final=3790.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 11), capture_turns=5, maze_distance=11, manhattan=11, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=5, scored_safe_area=3, future_merit=False, meritless_approach=False, worst_utility=2230.5, final=6890.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=6890.5
-   Cache sizes: sim=240, bfs=16, capture=115
-[STEP] move=Move.STAY, time=0.244 s
+   Candidate Move.UP, to=(13, 15), topology=905, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 7), capture_turns=5, maze_distance=11, manhattan=9, direction_delta=1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-5835.5, final=-4455.5
+   Candidate Move.DOWN, to=(15, 15), topology=930, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 7), capture_turns=5, maze_distance=11, manhattan=11, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=6, scored_safe_area=6, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-6205.0, final=-7585.0
+   Candidate Move.LEFT, to=(14, 14), topology=905, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 7), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=1561.25, final=2941.25
+   Candidate Move.RIGHT, to=(14, 16), topology=805, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 7), capture_turns=5, maze_distance=11, manhattan=11, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-5853.25, final=-5673.25
+   Candidate Move.STAY, to=(14, 15), topology=2375, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(12, 7), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=13, scored_safe_area=6, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-6205.0, final=-7085.0
+   Chosen move=Move.DOWN, from=(14, 15), to=(15, 15), score=-7585.0
+   Cache sizes: sim=540, bfs=19, capture=290
+[STEP] move=Move.DOWN, time=0.711 s
 
 
-[CONTROL-SIM] Pacman=(4, 11), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(12, 7), Ghost=(15, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 13), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=4, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8310.5, final=13150.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13150.5
-   Cache sizes: sim=240, bfs=16, capture=112
-[STEP] move=Move.STAY, time=0.214 s
+   Candidate Move.UP, to=(14, 15), topology=2375, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 9), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=7, scored_safe_area=7, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=1875.0, final=1515.0
+   Candidate Move.DOWN, to=(16, 15), topology=2100, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 9), capture_turns=5, maze_distance=10, manhattan=10, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=8, scored_safe_area=8, capture_improved=True, safe_area_improved=False, utility_improved=True, utility_supported=True, future_merit=True, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=-6200.0, final=-7940.0
+   Candidate Move.STAY, to=(15, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 9), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=11, scored_safe_area=8, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=1875.0, final=4435.0
+   Chosen move=Move.DOWN, from=(15, 15), to=(16, 15), score=-7940.0
+   Cache sizes: sim=423, bfs=17, capture=226
+[STEP] move=Move.DOWN, time=0.543 s
 
 
-[CONTROL-SIM] Pacman=(4, 12), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(12, 9), Ghost=(16, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8310.5, final=10050.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 13), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=4, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8310.5, final=13150.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13150.5
-   Cache sizes: sim=188, bfs=13, capture=91
-[STEP] move=Move.STAY, time=0.178 s
+   Candidate Move.UP, to=(15, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 11), capture_turns=3, maze_distance=7, manhattan=7, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=2, scored_safe_area=2, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=7955.0, final=9695.0
+   Candidate Move.DOWN, to=(17, 15), topology=780, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 11), capture_turns=4, maze_distance=9, manhattan=9, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=2211.0, final=2391.0
+   Candidate Move.LEFT, to=(16, 14), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 11), capture_turns=4, maze_distance=9, manhattan=7, direction_delta=1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=5, scored_safe_area=5, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=1880.0, final=1880.0
+   Candidate Move.STAY, to=(16, 15), topology=2100, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 11), capture_turns=4, maze_distance=8, manhattan=8, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=8, scored_safe_area=5, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=1880.0, final=1180.0
+   Chosen move=Move.STAY, from=(16, 15), to=(16, 15), score=1180.0
+   Cache sizes: sim=264, bfs=11, capture=146
+[STEP] move=Move.STAY, time=0.426 s
 
 
-[CONTROL-SIM] Pacman=(4, 14), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(12, 11), Ghost=(16, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 16), capture_turns=3, maze_distance=5, manhattan=5, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=8390.5, final=10310.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 15), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=True, worst_utility=8350.5, final=10090.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 15), capture_turns=3, maze_distance=7, manhattan=7, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8350.5, final=13190.5
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13190.5
-   Cache sizes: sim=211, bfs=15, capture=104
-[STEP] move=Move.STAY, time=0.251 s
+   Candidate Move.UP, to=(15, 15), topology=930, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 13), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=1, scored_safe_area=1, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=30035.0, final=31955.0
+   Candidate Move.DOWN, to=(17, 15), topology=780, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 13), capture_turns=3, maze_distance=7, manhattan=7, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=8291.0, final=8471.0
+   Candidate Move.LEFT, to=(16, 14), topology=830, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 13), capture_turns=3, maze_distance=7, manhattan=5, direction_delta=1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=4, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=7960.0, final=9340.0
+   Candidate Move.STAY, to=(16, 15), topology=2100, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(12, 13), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=5, scored_safe_area=4, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=7960.0, final=8640.0
+   Chosen move=Move.DOWN, from=(16, 15), to=(17, 15), score=8471.0
+   Cache sizes: sim=263, bfs=11, capture=144
+[STEP] move=Move.DOWN, time=0.427 s
 
 
-[CONTROL-SIM] Pacman=(4, 15), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(12, 13), Ghost=(17, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 17), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30430.5, final=32350.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 15), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30384.5, final=32304.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(4, 17), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=1, future_merit=False, meritless_approach=False, worst_utility=8382.0, final=13402.0
-   Chosen move=Move.STAY, from=(1, 19), to=(1, 19), score=13402.0
-   Cache sizes: sim=299, bfs=20, capture=136
-[STEP] move=Move.STAY, time=0.263 s
+   Candidate Move.UP, to=(16, 15), topology=2100, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(14, 13), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=1, scored_safe_area=1, capture_improved=False, safe_area_improved=False, utility_improved=True, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=30040.0, final=31960.0
+   Candidate Move.DOWN, to=(18, 15), topology=535, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(14, 13), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=3, scored_safe_area=3, capture_improved=True, safe_area_improved=False, utility_improved=True, utility_supported=True, future_merit=True, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=7973.75, final=8333.75
+   Candidate Move.STAY, to=(17, 15), topology=780, pacman_best=(<Move.DOWN: (1, 0)>, 2)->(14, 13), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=2, scored_safe_area=3, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=30371.0, final=35031.0
+   Chosen move=Move.DOWN, from=(17, 15), to=(18, 15), score=8333.75
+   Cache sizes: sim=305, bfs=17, capture=152
+[STEP] move=Move.DOWN, time=0.363 s
 
 
-[CONTROL-SIM] Pacman=(4, 16), Ghost=(1, 19)
+[CONTROL-SIM] Pacman=(14, 13), Ghost=(18, 15)
    Shared safe-area depth=3
-   Candidate Move.DOWN, to=(2, 19), topology=310, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 17), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=1, scored_safe_area=1, future_merit=False, meritless_approach=True, worst_utility=30430.5, final=32350.5
-   Candidate Move.LEFT, to=(1, 18), topology=190, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(4, 15), capture_turns=3, maze_distance=6, manhattan=6, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=8350.5, final=10090.5
-   Candidate Move.STAY, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 17), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=3, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=8382.0, final=13222.0
-   Chosen move=Move.LEFT, from=(1, 19), to=(1, 18), score=10090.5
-   Cache sizes: sim=172, bfs=12, capture=81
-[STEP] move=Move.LEFT, time=0.163 s
+   Candidate Move.UP, to=(17, 15), topology=780, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(14, 15), capture_turns=1, maze_distance=3, manhattan=3, direction_delta=-1, manhattan_delta=-1, is_approach=True, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=0, scored_safe_area=0, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=True, blocked_approach=True, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=500451.0, final=502551.0
+   Candidate Move.RIGHT, to=(18, 16), topology=580, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(14, 15), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=1, manhattan_delta=1, is_approach=False, is_away=True, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=2, scored_safe_area=2, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=30053.75, final=30593.75
+   Candidate Move.STAY, to=(18, 15), topology=535, pacman_best=(<Move.RIGHT: (0, 1)>, 2)->(14, 15), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=0, manhattan_delta=0, is_approach=False, is_away=False, urgent_exit_move=False, forced_approach=False, has_non_approaching_move=True, stay_is_valid_alternative=False, safe_area=1, scored_safe_area=2, capture_improved=False, safe_area_improved=False, utility_improved=False, utility_supported=False, future_merit=False, meritless_approach=False, blocked_approach=False, dead_end_mouth=None, dead_end_depth=None, dead_end_slack=None, current_dead_end_slack=None, must_exit_dead_end=False, toward_dead_end_exit=False, deeper_into_dead_end=False, dead_end_delay=False, dead_end_retreat=False, worst_utility=30053.75, final=31093.75
+   Chosen move=Move.RIGHT, from=(18, 15), to=(18, 16), score=30593.75
+   Cache sizes: sim=303, bfs=19, capture=163
+[STEP] move=Move.RIGHT, time=0.449 s
 
 
-[CONTROL-SIM] Pacman=(4, 18), Ghost=(1, 18)
-   Shared safe-area depth=3
-   Candidate Move.LEFT, to=(1, 17), topology=360, pacman_best=(<Move.LEFT: (0, -1)>, 1)->(4, 17), capture_turns=4, maze_distance=7, manhattan=3, direction_delta=1, manhattan_delta=-1, is_approach=True, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=8350.5, final=10090.5
-   Candidate Move.RIGHT, to=(1, 19), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 19), capture_turns=1, maze_distance=3, manhattan=3, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=0, scored_safe_area=0, future_merit=False, meritless_approach=True, worst_utility=30462.0, final=32562.0
-   Candidate Move.STAY, to=(1, 18), topology=190, pacman_best=(<Move.RIGHT: (0, 1)>, 1)->(4, 19), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=2, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=30413.5, final=35253.5
-   Chosen move=Move.LEFT, from=(1, 18), to=(1, 17), score=10090.5
-   Cache sizes: sim=135, bfs=10, capture=64
-[STEP] move=Move.LEFT, time=0.152 s
+[PANIC] Pacman=(14, 15), Ghost(18, 16)
+   Move.LEFT to Position=(18, 15), Distance=4
+   Move.RIGHT to Position=(18, 17), Distance=6
+   Move.STAY to Position=(18, 16), Distance=5
+   Final Move=Move.RIGHT, Position=(18, 16)
+[STEP] move=Move.RIGHT, time=0.011 s
 
 
-[CONTROL-SIM] Pacman=(4, 19), Ghost=(1, 17)
-   Shared safe-area depth=3
-   Candidate Move.LEFT, to=(1, 16), topology=530, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=2, maze_distance=5, manhattan=5, direction_delta=1, manhattan_delta=1, is_approach=False, safe_area=2, scored_safe_area=2, future_merit=True, meritless_approach=False, worst_utility=30046.25, final=30586.25
-   Candidate Move.RIGHT, to=(1, 18), topology=190, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=1, maze_distance=3, manhattan=3, direction_delta=-1, manhattan_delta=-1, is_approach=True, safe_area=0, scored_safe_area=0, future_merit=False, meritless_approach=True, worst_utility=500453.5, final=502553.5
-   Candidate Move.STAY, to=(1, 17), topology=360, pacman_best=(<Move.UP: (-1, 0)>, 1)->(3, 19), capture_turns=2, maze_distance=4, manhattan=4, direction_delta=0, manhattan_delta=0, is_approach=False, safe_area=1, scored_safe_area=2, future_merit=False, meritless_approach=False, worst_utility=30046.25, final=34886.25
-   Chosen move=Move.LEFT, from=(1, 17), to=(1, 16), score=30586.25
-   Cache sizes: sim=194, bfs=12, capture=90
-[STEP] move=Move.LEFT, time=0.186 s
+[PANIC] Pacman=(16, 15), Ghost(18, 17)
+   Move.UP to Position=(17, 17), Distance=5
+   Move.LEFT to Position=(18, 16), Distance=3
+   Move.RIGHT to Position=(18, 18), Distance=5
+   Move.STAY to Position=(18, 17), Distance=4
+   Final Move=Move.UP, Position=(18, 17)
+[STEP] move=Move.UP, time=0.011 s
 
 
-[PANIC] Pacman=(2, 19), Ghost(1, 16)
-   Move.LEFT to Position=(1, 15), Distance=5
-   Move.RIGHT to Position=(1, 17), Distance=3
-   Move.STAY to Position=(1, 16), Distance=4
-   Final Move=Move.LEFT, Position=(1, 16)
-[STEP] move=Move.LEFT, time=0.007 s
+[PANIC] Pacman=(18, 15), Ghost(17, 17)
+   Move.UP to Position=(16, 17), Distance=4
+   Move.DOWN to Position=(18, 17), Distance=2
+   Move.STAY to Position=(17, 17), Distance=3
+   Final Move=Move.UP, Position=(17, 17)
+[STEP] move=Move.UP, time=0.007 s
 
 
-[PANIC] Pacman=(1, 19), Ghost(1, 15)
-   Move.DOWN to Position=(2, 15), Distance=5
-   Move.LEFT to Position=(1, 14), Distance=5
-   Move.RIGHT to Position=(1, 16), Distance=3
-   Move.STAY to Position=(1, 15), Distance=4
-   Final Move=Move.DOWN, Position=(1, 15)
-[STEP] move=Move.DOWN, time=0.007 s
-
-
-[PANIC] Pacman=(1, 17), Ghost(2, 15)
-   Move.UP to Position=(1, 15), Distance=2
-   Move.DOWN to Position=(3, 15), Distance=4
-   Move.STAY to Position=(2, 15), Distance=3
-   Final Move=Move.DOWN, Position=(2, 15)
-[STEP] move=Move.DOWN, time=0.008 s
-
-
-[PANIC] Pacman=(1, 15), Ghost(3, 15)
-   Move.UP to Position=(2, 15), Distance=1
-   Move.DOWN to Position=(4, 15), Distance=3
-   Move.STAY to Position=(3, 15), Distance=2
-   Final Move=Move.DOWN, Position=(3, 15)
-[STEP] move=Move.DOWN, time=0.008 s
+[PANIC] Pacman=(18, 17), Ghost(16, 17)
+   Move.DOWN to Position=(17, 17), Distance=1
+   Move.RIGHT to Position=(16, 18), Distance=3
+   Move.STAY to Position=(16, 17), Distance=2
+   Final Move=Move.RIGHT, Position=(16, 17)
+[STEP] move=Move.RIGHT, time=0.009 s
 
 
