@@ -11,7 +11,6 @@ from collections import deque
 
 from seek_agent.topology import build_trap_map
 
-
 class PacmanAgent(BasePacmanAgent):
     """Pacman seeker: 1-turn lookahead with turn-distance + topology evaluation."""
 
@@ -172,7 +171,7 @@ class PacmanAgent(BasePacmanAgent):
 from agent_interface import GhostAgent as BaseGhostAgent
 from environment import Move
 from hide_agent import panic
-from debug import debug
+# from debug import debug
 from hide_agent import topology
 from hide_agent import control
 
@@ -187,8 +186,8 @@ class GhostAgent(BaseGhostAgent):
         self.topology_map = None
         self.previous_position = None
 
-        debug.clear_log()
-        debug.log("- - AGENT INITIALIZED - -")
+        # debug.clear_log()
+        # debug.log("- - AGENT INITIALIZED - -")
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
         control.reset_timer()
@@ -196,7 +195,7 @@ class GhostAgent(BaseGhostAgent):
 
         if self.topology_map is None:
             self.topology_map = topology.build_topology_score_map(map_state)
-            topology.write_topology_score_map(self.topology_map, map_state)
+            # topology.write_topology_score_map(self.topology_map, map_state)
 
         my_position = (int(my_position[0]), int(my_position[1]))
         enemy_position = (int(enemy_position[0]), int(enemy_position[1]))
@@ -207,7 +206,7 @@ class GhostAgent(BaseGhostAgent):
         if not isinstance(move, Move):
             return Move.STAY
 
-        debug.log(f"[STEP] move={move}, time={control.get_run_time() / 1000:.3f} s\n\n")
+        # debug.log(f"[STEP] move={move}, time={control.get_run_time() / 1000:.3f} s\n\n")
         return move
 
     def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2):
@@ -215,7 +214,7 @@ class GhostAgent(BaseGhostAgent):
             return Move.STAY
         
         if panic.should_panic(enemy_position, my_position, map_state, pacman_speed):
-            debug.log(f"[PANIC] Pacman={enemy_position}, Ghost{my_position}")
+            # debug.log(f"[PANIC] Pacman={enemy_position}, Ghost{my_position}")
             return panic.choose_move(map_state, my_position, enemy_position)
         
         return control.choose_move(

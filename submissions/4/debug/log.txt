@@ -131,3 +131,17 @@ Started: 2026-07-10 23:58:10.402857
 [STEP] move=Move.LEFT, time=0.006 s
 
 
+----------------------------------------------------
+
+[PACMAN][STEP] Time 0.012684s
+[PACMAN][STEP] Time 0.012943s
+[PACMAN][STEP] Time 0.016099s
+[PACMAN][STEP] Time 0.012860s
+[PACMAN][STEP] Time 0.007276s
+[PACMAN][STEP] Time 0.012848s
+[PACMAN][STEP] Time 0.007422s
+[PACMAN][STEP] Time 0.011594s
+[PACMAN][STEP] Time 0.013794s
+[PACMAN][STEP] Time 0.019127s
+[PACMAN][STEP] Time 0.003097s
+[PACMAN][STEP] Time 0.011639s
