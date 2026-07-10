@@ -169,50 +169,60 @@ class PacmanAgent(BasePacmanAgent):
         return (Move.STAY, 1)
 
 
-# =========================================================================
-# GhostAgent — UNCHANGED
-# =========================================================================
 from agent_interface import GhostAgent as BaseGhostAgent
-from environment import Move as _Move
+from environment import Move
 from hide_agent import panic
 from debug import debug
-from hide_agent import topology as _ghost_topo
+from hide_agent import topology
 from hide_agent import control
-from time import perf_counter as _pc
-
 
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
         self.name = "SurvivabilityGhost"
         self.last_known_enemy_pos = None
+
         self.pacman_speed = 2
         self.topology_map = None
         self.previous_position = None
+
         debug.clear_log()
         debug.log("- - AGENT INITIALIZED - -")
 
-    def step(self, map_state, my_position, enemy_position, step_number):
-        start = _pc()
+    def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
+        control.reset_timer()
         map_state = np.asarray(map_state)
+
         if self.topology_map is None:
-            self.topology_map = _ghost_topo.build_topology_score_map(map_state)
-            _ghost_topo.write_topology_score_map(self.topology_map, map_state)
+            self.topology_map = topology.build_topology_score_map(map_state)
+            topology.write_topology_score_map(self.topology_map, map_state)
+
         my_position = (int(my_position[0]), int(my_position[1]))
         enemy_position = (int(enemy_position[0]), int(enemy_position[1]))
+
         move = self._choose_move(map_state, my_position, enemy_position, self.pacman_speed)
         self.previous_position = my_position
-        if not isinstance(move, _Move):
-            return _Move.STAY
-        debug.log(f"[STEP] move={move}, time={(_pc() - start) * 1000:.3f} ms")
+
+        if not isinstance(move, Move):
+            return Move.STAY
+
+        debug.log(f"[STEP] move={move}, time={control.get_run_time() / 1000:.3f} s\n\n")
         return move
 
-    def _choose_move(self, map_state, my_position, enemy_position, pacman_speed=2):
+    def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2):
         if enemy_position is None:
-            return _Move.STAY
+            return Move.STAY
+        
         if panic.should_panic(enemy_position, my_position, map_state, pacman_speed):
             debug.log(f"[PANIC] Pacman={enemy_position}, Ghost{my_position}")
             return panic.choose_move(map_state, my_position, enemy_position)
+        
         return control.choose_move(
-            my_position, enemy_position, map_state,
-            self.topology_map, pacman_speed, self.previous_position)
+            my_position,
+            enemy_position,
+            map_state,
+            self.topology_map,
+            pacman_speed,
+            self.previous_position
+        )

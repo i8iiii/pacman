@@ -33,6 +33,9 @@ from time import perf_counter
 
 __START__ = 0.0
 
+__DEAD_END_CACHE_KEY__ = None
+__DEAD_END_CACHE__ = None
+
 def reset_timer():
    global __START__
    __START__ = perf_counter()
@@ -51,6 +54,193 @@ def log(message: str) -> None:
       debug.log(message)
    except Exception:
       pass
+
+def _map_cache_key(map_state) -> tuple:
+   """Create a stable key for the static maze layout."""
+   return (
+      tuple(map_state.shape),
+      str(map_state.dtype),
+      map_state.tobytes(),
+   )
+
+
+def build_dead_end_cache(map_state) -> dict:
+   """
+   Precompute complete dead-end trees using iterative leaf pruning.
+
+   The previous implementation stopped whenever it reached a junction.
+   That missed terminal pockets containing an internal junction, such as:
+
+       outside -- neck -- junction -- endpoint
+                              |
+                           endpoint
+
+   Leaf pruning removes endpoints first. A junction is then removed when
+   all but one of its remaining exits have been removed. This recursively
+   marks the entire terminal tree, including its neck, while preserving
+   loops and corridors that connect two live regions.
+   """
+   adjacency = {}
+
+   height, width = map_state.shape
+
+   for row in range(height):
+      for col in range(width):
+         pos = (row, col)
+
+         if core.is_valid_position(pos, map_state):
+            adjacency[pos] = []
+
+   for pos in adjacency:
+      for move in core.PACMAN_MOVES:
+         new_pos = core.next_position(pos, move)
+
+         if new_pos in adjacency:
+            adjacency[pos].append(new_pos)
+
+   # Repeatedly remove cells with zero or one remaining neighbour.
+   # This is the graph 2-core peeling process.
+   remaining_degree = {
+      pos: len(neighbours)
+      for pos, neighbours in adjacency.items()
+   }
+
+   queue = deque(
+      pos
+      for pos, degree in remaining_degree.items()
+      if degree <= 1
+   )
+
+   peeled_cells = set()
+
+   while queue:
+      current = queue.popleft()
+
+      if current in peeled_cells:
+         continue
+
+      peeled_cells.add(current)
+
+      for neighbour in adjacency[current]:
+         if neighbour in peeled_cells:
+            continue
+
+         remaining_degree[neighbour] -= 1
+
+         if remaining_degree[neighbour] <= 1:
+            queue.append(neighbour)
+
+   core_cells = set(adjacency) - peeled_cells
+
+   dead_end_cells = set()
+   mouth_by_cell = {}
+   depth_by_cell = {}
+   visited = set()
+
+   # Each peeled component attached to exactly one surviving core cell
+   # is a real dead-end tree. That surviving cell is its mouth.
+   for start in peeled_cells:
+      if start in visited:
+         continue
+
+      component = set()
+      boundary_core_cells = set()
+      component_queue = deque([start])
+      visited.add(start)
+
+      while component_queue:
+         current = component_queue.popleft()
+         component.add(current)
+
+         for neighbour in adjacency[current]:
+            if neighbour in core_cells:
+               boundary_core_cells.add(neighbour)
+            elif (
+               neighbour in peeled_cells
+               and neighbour not in visited
+            ):
+               visited.add(neighbour)
+               component_queue.append(neighbour)
+
+      # If the whole disconnected component is a tree, there is no
+      # unique surviving outside cell to use as its mouth.
+      if len(boundary_core_cells) != 1:
+         continue
+
+      mouth = next(iter(boundary_core_cells))
+
+      # Compute exact depth from the mouth through this dead-end tree.
+      depth_queue = deque([(mouth, 0)])
+      depth_visited = {mouth}
+
+      while depth_queue:
+         current, depth = depth_queue.popleft()
+
+         for neighbour in adjacency[current]:
+            if (
+               neighbour not in component
+               or neighbour in depth_visited
+            ):
+               continue
+
+            depth_visited.add(neighbour)
+            depth_by_cell[neighbour] = depth + 1
+            depth_queue.append((neighbour, depth + 1))
+
+      for cell in component:
+         dead_end_cells.add(cell)
+         mouth_by_cell[cell] = mouth
+
+   return {
+      "cells": dead_end_cells,
+      "mouth_by_cell": mouth_by_cell,
+      "depth_by_cell": depth_by_cell,
+   }
+
+
+def get_dead_end_cache(map_state) -> dict:
+   """Return the cached dead-end analysis for the current maze."""
+   global __DEAD_END_CACHE_KEY__
+   global __DEAD_END_CACHE__
+
+   cache_key = _map_cache_key(map_state)
+
+   if (
+      __DEAD_END_CACHE__ is None
+      or cache_key != __DEAD_END_CACHE_KEY__
+   ):
+      __DEAD_END_CACHE_KEY__ = cache_key
+      __DEAD_END_CACHE__ = build_dead_end_cache(map_state)
+
+      dead_cells = sorted(__DEAD_END_CACHE__["cells"])
+
+      log(
+         f"[DEAD-END-CACHE] "
+         f"cells={len(dead_cells)}, "
+         f"branches={len(set(__DEAD_END_CACHE__['mouth_by_cell'].values()))}, "
+         f"dead_cells={dead_cells}"
+      )
+
+   return __DEAD_END_CACHE__
+
+
+def dead_end_depth(
+   pos: tuple[int, int],
+   mouth: tuple[int, int],
+   dead_end_cache: dict,
+) -> int:
+   """Return depth inside a specific cached dead-end branch."""
+   if pos == mouth:
+      return 0
+
+   if dead_end_cache["mouth_by_cell"].get(pos) != mouth:
+      return core.INF
+
+   return dead_end_cache["depth_by_cell"].get(
+      pos,
+      core.INF,
+   )
+
 
 def cached_bfs_distances(
    start: tuple[int, int],
@@ -300,9 +490,13 @@ def predicted_safe_area(
    max_depth: int,
    capture_cache: dict | None = None,
    blocked_pos: tuple[int, int] | None = None,
+   dead_end_cells: set[tuple[int, int]] | None = None,
 ) -> int:
    if not core.is_valid_position(ghost_pos, map_state):
       return 0
+
+   if dead_end_cells is None:
+      dead_end_cells = set()
 
    safe_cells = 0
    queue = deque([(ghost_pos, 0)])
@@ -334,7 +528,8 @@ def predicted_safe_area(
       if capture_turns <= ghost_steps + 1:
          continue
 
-      safe_cells += 1
+      if current not in dead_end_cells:
+         safe_cells += 1
 
       if ghost_steps >= max_depth:
          continue
@@ -355,6 +550,7 @@ def decisive_dead_end_move(
    map_state,
    pacman_speed: int,
    previous_position: tuple[int, int] | None = None,
+   dead_end_cache: dict | None = None,
 ) -> Move | None:
    """
    Return a decisive move while inside a dead end.
@@ -370,22 +566,22 @@ def decisive_dead_end_move(
       then perform a late escape directly toward Pacman.
    """
 
+   if dead_end_cache is None:
+      dead_end_cache = get_dead_end_cache(map_state)
+
    dead_end_mouth = find_dead_end_mouth(
       ghost_pos,
       map_state,
+      dead_end_cache,
    )
 
    if dead_end_mouth is None:
       return None
 
-   mouth_distances = core.bfs_distances(
-      dead_end_mouth,
-      map_state,
-   )
-
-   current_depth = mouth_distances.get(
+   current_depth = dead_end_depth(
       ghost_pos,
-      core.INF,
+      dead_end_mouth,
+      dead_end_cache,
    )
 
    escape_move = Move.STAY
@@ -405,9 +601,10 @@ def decisive_dead_end_move(
          move,
       )
 
-      new_depth = mouth_distances.get(
+      new_depth = dead_end_depth(
          new_position,
-         core.INF,
+         dead_end_mouth,
+         dead_end_cache,
       )
 
       if new_depth < escape_depth:
@@ -442,9 +639,10 @@ def decisive_dead_end_move(
    previous_depth = None
 
    if previous_position is not None:
-      previous_depth = mouth_distances.get(
+      previous_depth = dead_end_depth(
          previous_position,
-         core.INF,
+         dead_end_mouth,
+         dead_end_cache,
       )
 
       continuing_escape = (
@@ -489,63 +687,16 @@ def decisive_dead_end_move(
 def find_dead_end_mouth(
    pos: tuple[int, int],
    map_state,
+   dead_end_cache: dict | None = None,
 ) -> tuple[int, int] | None:
-   """
-   Return the sole junction connecting the current dead-end branch
-   to the rest of the map.
-
-   Return None when the position is:
-   - already at a junction;
-   - in a corridor connecting multiple junctions;
-   - inside a loop.
-   """
-
+   """Return the cached mouth of the dead-end branch containing pos."""
    if not core.is_valid_position(pos, map_state):
       return None
 
-   if core.exit_count(pos, map_state) >= 3:
-      return None
+   if dead_end_cache is None:
+      dead_end_cache = get_dead_end_cache(map_state)
 
-   queue = deque([pos])
-   visited = {pos}
-
-   boundary_junctions = set()
-   has_endpoint = False
-
-   while queue:
-      current = queue.popleft()
-      degree = core.exit_count(current, map_state)
-
-      if degree <= 1:
-         has_endpoint = True
-
-      for move in core.PACMAN_MOVES:
-         new_pos = core.next_position(
-            current,
-            move,
-         )
-
-         if not core.is_valid_position(
-            new_pos,
-            map_state,
-         ):
-            continue
-
-         if core.exit_count(new_pos, map_state) >= 3:
-            boundary_junctions.add(new_pos)
-            continue
-
-         if new_pos not in visited:
-            visited.add(new_pos)
-            queue.append(new_pos)
-
-   if (
-      has_endpoint
-      and len(boundary_junctions) == 1
-   ):
-      return next(iter(boundary_junctions))
-
-   return None
+   return dead_end_cache["mouth_by_cell"].get(pos)
 
 
 def choose_move(
@@ -566,12 +717,15 @@ def choose_move(
       f"Ghost={ghost_pos}"
    )
 
+   dead_end_cache = get_dead_end_cache(map_state)
+
    dead_end_move = decisive_dead_end_move(
       ghost_pos,
       pacman_pos,
       map_state,
       pacman_speed,
       previous_position,
+      dead_end_cache,
    )
 
    if dead_end_move is not None:
@@ -710,6 +864,7 @@ def choose_move(
          max_depth=safe_area_depth,
          capture_cache=capture_cache,
          blocked_pos=blocked_pos,
+         dead_end_cells=dead_end_cache["cells"],
       )
 
    stay_candidate = next(
@@ -720,23 +875,11 @@ def choose_move(
 
    stay_safe_area = stay_candidate["safe_area"]
 
-   moving_safe_areas = [
-      candidate["safe_area"]
-      for candidate in candidates
-      if candidate["move"] != Move.STAY
-   ]
-
-   best_moving_safe_area = max(
-      moving_safe_areas,
-      default=stay_safe_area,
-   )
-
-   stay_scored_safe_area = best_moving_safe_area
-
    # Detect whether the Ghost is currently inside a real dead end.
    dead_end_mouth = find_dead_end_mouth(
       ghost_pos,
       map_state,
+      dead_end_cache,
    )
 
    dead_end_distances = {}
@@ -878,6 +1021,62 @@ def choose_move(
          candidate["deeper_into_dead_end"] = False
          candidate["dead_end_slack"] = None
 
+      # Candidate-level branch detection is required even when the
+      # Ghost is currently standing at the mouth. The mouth itself is
+      # not a dead-end cell, so current-position detection alone cannot
+      # prevent the first step into a branch.
+      candidate_dead_end_mouth = (
+         dead_end_cache["mouth_by_cell"].get(
+            candidate["position"]
+         )
+      )
+
+      candidate["candidate_dead_end_mouth"] = (
+         candidate_dead_end_mouth
+      )
+
+      candidate["dead_end_entry_depth"] = (
+         dead_end_cache["depth_by_cell"].get(
+            candidate["position"]
+         )
+         if candidate_dead_end_mouth is not None
+         else None
+      )
+
+      candidate["enters_dead_end"] = (
+         candidate_dead_end_mouth is not None
+         and candidate_dead_end_mouth != dead_end_mouth
+      )
+
+   # Entering a dead end is avoidable unless it strictly increases
+   # the capture horizon over every candidate that stays outside
+   # dead-end branches. STAY is deliberately included as an
+   # alternative here.
+   best_non_dead_end_capture_turns = max(
+      (
+         candidate["capture_turns"]
+         for candidate in candidates
+         if (
+            not candidate["enters_dead_end"]
+            and not candidate["deeper_into_dead_end"]
+         )
+      ),
+      default=-1,
+   )
+
+   for candidate in candidates:
+      candidate["avoidable_dead_end_entry"] = (
+         candidate["enters_dead_end"]
+         and best_non_dead_end_capture_turns >= 0
+         and candidate["capture_turns"]
+            <= best_non_dead_end_capture_turns
+      )
+
+   log(
+      f"   Best non-dead-end capture turns="
+      f"{best_non_dead_end_capture_turns}"
+   )
+
    # A move deeper into the current dead end does not count
    # as a useful non-approaching alternative.
    has_non_approaching_move = any(
@@ -915,6 +1114,59 @@ def choose_move(
       and stay_candidate["capture_turns"] > 1
    )
 
+   # Precompute whether an approaching move is genuinely forced.
+   # STAY must not borrow safe-area credit from an avoidable approach.
+   for candidate in candidates:
+      candidate["urgent_exit_move"] = (
+         must_exit_dead_end
+         and candidate["toward_dead_end_exit"]
+      )
+
+      candidate["forced_approach"] = (
+         candidate["move"] != Move.STAY
+         and candidate["is_approach"]
+         and (
+            candidate["urgent_exit_move"]
+            or (
+               dead_end_mouth is None
+               and not has_non_approaching_move
+            )
+         )
+      )
+
+   viable_moving_candidates = [
+      candidate
+      for candidate in candidates
+      if (
+         candidate["move"] != Move.STAY
+         and not candidate["deeper_into_dead_end"]
+         and (
+            not candidate["is_approach"]
+            or candidate["forced_approach"]
+         )
+      )
+   ]
+
+   # STAY receives only the safe-area value of a move that the
+   # controller could legitimately choose. Avoidable approaches,
+   # such as the blocked LEFT move in the reported log, are excluded.
+   best_moving_safe_area = max(
+      (
+         candidate["safe_area"]
+         for candidate in viable_moving_candidates
+      ),
+      default=stay_safe_area,
+   )
+
+   stay_scored_safe_area = best_moving_safe_area
+
+   log(
+      f"   STAY safe-area proxy="
+      f"{best_moving_safe_area}, "
+      f"viable_sources="
+      f"{[(candidate['move'], candidate['safe_area']) for candidate in viable_moving_candidates]}"
+   )
+
    for candidate in candidates:
       final_score = candidate["worst_utility"]
 
@@ -947,22 +1199,8 @@ def choose_move(
       is_approach = candidate["is_approach"]
       is_away = candidate["is_away"]
 
-      urgent_exit_move = (
-         must_exit_dead_end
-         and candidate["toward_dead_end_exit"]
-      )
-
-      forced_approach = (
-         candidate["move"] != Move.STAY
-         and is_approach
-         and (
-            urgent_exit_move
-            or (
-               dead_end_mouth is None
-               and not has_non_approaching_move
-            )
-         )
-      )
+      urgent_exit_move = candidate["urgent_exit_move"]
+      forced_approach = candidate["forced_approach"]
 
       # A move toward the mouth is exempt only when
       # leaving the dead end has become urgent.
@@ -1022,9 +1260,14 @@ def choose_move(
          and safe_area_not_worse
       )
 
+      safe_area_supported = (
+         safe_area_improved
+         and capture_not_worse
+      )
+
       has_future_merit = (
          capture_improved
-         or safe_area_improved
+         or safe_area_supported
          or utility_has_real_support
       )
 
@@ -1074,6 +1317,7 @@ def choose_move(
       candidate_rank = (
          1 if dead_end_delay else 0,
          1 if dead_end_retreat else 0,
+         1 if candidate["avoidable_dead_end_entry"] else 0,
          1 if blocked_approach else 0,
          final_score,
          -candidate["capture_turns"],
@@ -1112,6 +1356,14 @@ def choose_move(
          f"future_merit={has_future_merit}, "
          f"meritless_approach={meritless_approach}, "
          f"blocked_approach={blocked_approach}, "
+         f"candidate_dead_end_mouth="
+         f"{candidate['candidate_dead_end_mouth']}, "
+         f"dead_end_entry_depth="
+         f"{candidate['dead_end_entry_depth']}, "
+         f"enters_dead_end="
+         f"{candidate['enters_dead_end']}, "
+         f"avoidable_dead_end_entry="
+         f"{candidate['avoidable_dead_end_entry']}, "
          f"dead_end_mouth={dead_end_mouth}, "
          f"dead_end_depth="
          f"{candidate['dead_end_depth']}, "
