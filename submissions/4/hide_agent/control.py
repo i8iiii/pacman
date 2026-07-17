@@ -25,10 +25,10 @@ LOW_SAFE_AREA_PENALTY = 1200
 MIN_SAFE_AREA = 4
 
 SIMULATION_DEPTH = 2
-SAFE_AREA_DEPTH = 3
-__TIMEOUT__ = 850
+SAFE_AREA_DEPTH = 5
+__TIMEOUT__ = 800
 
-# from debug import debug
+from debug import debug
 from time import perf_counter
 
 __START__ = 0.0
@@ -46,14 +46,11 @@ def get_run_time():
 def timed_out() -> bool:
    return get_run_time() >= __TIMEOUT__
 
-# def log(message: str) -> None:
-#    if debug is None:
-#       return
-
-#    try:
-#       debug.log(message)
-#    except Exception:
-#       pass
+def log(message: str) -> None:
+   try:
+      debug.log(message)
+   except Exception:
+      pass
 
 def _map_cache_key(map_state) -> tuple:
    """Create a stable key for the static maze layout."""
@@ -214,12 +211,12 @@ def get_dead_end_cache(map_state) -> dict:
 
       dead_cells = sorted(__DEAD_END_CACHE__["cells"])
 
-      # log(
-      #    f"[DEAD-END-CACHE] "
-      #    f"cells={len(dead_cells)}, "
-      #    f"branches={len(set(__DEAD_END_CACHE__['mouth_by_cell'].values()))}, "
-      #    f"dead_cells={dead_cells}"
-      # )
+      log(
+         f"[DEAD-END-CACHE] "
+         f"cells={len(dead_cells)}, "
+         f"branches={len(set(__DEAD_END_CACHE__['mouth_by_cell'].values()))}, "
+         f"dead_cells={dead_cells}"
+      )
 
    return __DEAD_END_CACHE__
 
@@ -613,12 +610,12 @@ def decisive_dead_end_move(
          escape_depth = new_depth
 
    if escape_move == Move.STAY:
-      # log(
-      #    f"[DEAD-END] mouth={dead_end_mouth}, "
-      #    f"depth={current_depth}, "
-      #    f"decision={Move.STAY}, "
-      #    f"reason=no-exit-move"
-      # )
+      log(
+         f"[DEAD-END] mouth={dead_end_mouth}, "
+         f"depth={current_depth}, "
+         f"decision={Move.STAY}, "
+         f"reason=no-exit-move"
+      )
       return Move.STAY
 
    pacman_turns_to_mouth = core.capture_turn_distance(
@@ -666,21 +663,21 @@ def decisive_dead_end_move(
       decision = Move.STAY
       reason = "escape-not-viable"
 
-   # log(
-   #    f"[DEAD-END] "
-   #    f"mouth={dead_end_mouth}, "
-   #    f"depth={current_depth}, "
-   #    f"pacman_turns_to_mouth={pacman_turns_to_mouth}, "
-   #    f"slack={escape_slack}, "
-   #    f"reserve={DEAD_END_ESCAPE_RESERVE}, "
-   #    f"previous_depth={previous_depth}, "
-   #    f"continuing={continuing_escape}, "
-   #    f"escape_has_merit={escape_has_merit}, "
-   #    f"escape_move={escape_move}"
-   #    f"->{escape_position}, "
-   #    f"decision={decision}, "
-   #    f"reason={reason}"
-   # )
+   log(
+      f"[DEAD-END] "
+      f"mouth={dead_end_mouth}, "
+      f"depth={current_depth}, "
+      f"pacman_turns_to_mouth={pacman_turns_to_mouth}, "
+      f"slack={escape_slack}, "
+      f"reserve={DEAD_END_ESCAPE_RESERVE}, "
+      f"previous_depth={previous_depth}, "
+      f"continuing={continuing_escape}, "
+      f"escape_has_merit={escape_has_merit}, "
+      f"escape_move={escape_move}"
+      f"->{escape_position}, "
+      f"decision={decision}, "
+      f"reason={reason}"
+   )
 
    return decision
 
@@ -711,11 +708,11 @@ def choose_move(
    Ghost chooses the move that minimizes Pacman's best response.
    """
 
-   # log(
-   #    f"[CONTROL-SIM] "
-   #    f"Pacman={pacman_pos}, "
-   #    f"Ghost={ghost_pos}"
-   # )
+   log(
+      f"[CONTROL-SIM] "
+      f"Pacman={pacman_pos}, "
+      f"Ghost={ghost_pos}"
+   )
 
    dead_end_cache = get_dead_end_cache(map_state)
 
@@ -844,10 +841,10 @@ def choose_move(
    else:
       safe_area_depth = SAFE_AREA_DEPTH
 
-   # log(
-   #    f"   Shared safe-area depth="
-   #    f"{safe_area_depth}"
-   # )
+   log(
+      f"   Shared safe-area depth="
+      f"{safe_area_depth}"
+   )
 
    # Calculate each candidate's raw safe area once.
    for candidate in candidates:
@@ -1072,10 +1069,10 @@ def choose_move(
             <= best_non_dead_end_capture_turns
       )
 
-   # log(
-   #    f"   Best non-dead-end capture turns="
-   #    f"{best_non_dead_end_capture_turns}"
-   # )
+   log(
+      f"   Best non-dead-end capture turns="
+      f"{best_non_dead_end_capture_turns}"
+   )
 
    # A move deeper into the current dead end does not count
    # as a useful non-approaching alternative.
@@ -1160,12 +1157,12 @@ def choose_move(
 
    stay_scored_safe_area = best_moving_safe_area
 
-   # log(
-   #    f"   STAY safe-area proxy="
-   #    f"{best_moving_safe_area}, "
-   #    f"viable_sources="
-   #    f"{[(candidate['move'], candidate['safe_area']) for candidate in viable_moving_candidates]}"
-   # )
+   log(
+      f"   STAY safe-area proxy="
+      f"{best_moving_safe_area}, "
+      f"viable_sources="
+      f"{[(candidate['move'], candidate['safe_area']) for candidate in viable_moving_candidates]}"
+   )
 
    for candidate in candidates:
       final_score = candidate["worst_utility"]
@@ -1327,62 +1324,62 @@ def choose_move(
          -candidate["topology"],
       )
 
-      # log(
-      #    f"   Candidate {candidate['move']}, "
-      #    f"to={candidate['position']}, "
-      #    f"topology={candidate['topology']}, "
-      #    f"pacman_best={candidate['pacman_action']}"
-      #    f"->{candidate['pacman_position']}, "
-      #    f"capture_turns={candidate['capture_turns']}, "
-      #    f"maze_distance={candidate_maze_distance}, "
-      #    f"manhattan={candidate_manhattan}, "
-      #    f"direction_delta={direction_delta}, "
-      #    f"manhattan_delta={manhattan_delta}, "
-      #    f"is_approach={is_approach}, "
-      #    f"is_away={is_away}, "
-      #    f"urgent_exit_move={urgent_exit_move}, "
-      #    f"forced_approach={forced_approach}, "
-      #    f"has_non_approaching_move="
-      #    f"{has_non_approaching_move}, "
-      #    f"stay_is_valid_alternative="
-      #    f"{stay_is_valid_alternative}, "
-      #    f"safe_area={safe_area}, "
-      #    f"scored_safe_area={scored_safe_area}, "
-      #    f"capture_improved={capture_improved}, "
-      #    f"safe_area_improved={safe_area_improved}, "
-      #    f"utility_improved={utility_improved}, "
-      #    f"utility_supported="
-      #    f"{utility_has_real_support}, "
-      #    f"future_merit={has_future_merit}, "
-      #    f"meritless_approach={meritless_approach}, "
-      #    f"blocked_approach={blocked_approach}, "
-      #    f"candidate_dead_end_mouth="
-      #    f"{candidate['candidate_dead_end_mouth']}, "
-      #    f"dead_end_entry_depth="
-      #    f"{candidate['dead_end_entry_depth']}, "
-      #    f"enters_dead_end="
-      #    f"{candidate['enters_dead_end']}, "
-      #    f"avoidable_dead_end_entry="
-      #    f"{candidate['avoidable_dead_end_entry']}, "
-      #    f"dead_end_mouth={dead_end_mouth}, "
-      #    f"dead_end_depth="
-      #    f"{candidate['dead_end_depth']}, "
-      #    f"dead_end_slack="
-      #    f"{candidate['dead_end_slack']}, "
-      #    f"current_dead_end_slack="
-      #    f"{current_dead_end_slack}, "
-      #    f"must_exit_dead_end="
-      #    f"{must_exit_dead_end}, "
-      #    f"toward_dead_end_exit="
-      #    f"{candidate['toward_dead_end_exit']}, "
-      #    f"deeper_into_dead_end="
-      #    f"{candidate['deeper_into_dead_end']}, "
-      #    f"dead_end_delay={dead_end_delay}, "
-      #    f"dead_end_retreat={dead_end_retreat}, "
-      #    f"worst_utility="
-      #    f"{candidate['worst_utility']}, "
-      #    f"final={final_score}"
-      # )
+      log(
+         f"   Candidate {candidate['move']}, "
+         f"to={candidate['position']}, "
+         f"topology={candidate['topology']}, "
+         f"pacman_best={candidate['pacman_action']}"
+         f"->{candidate['pacman_position']}, "
+         f"capture_turns={candidate['capture_turns']}, "
+         f"maze_distance={candidate_maze_distance}, "
+         f"manhattan={candidate_manhattan}, "
+         f"direction_delta={direction_delta}, "
+         f"manhattan_delta={manhattan_delta}, "
+         f"is_approach={is_approach}, "
+         f"is_away={is_away}, "
+         f"urgent_exit_move={urgent_exit_move}, "
+         f"forced_approach={forced_approach}, "
+         f"has_non_approaching_move="
+         f"{has_non_approaching_move}, "
+         f"stay_is_valid_alternative="
+         f"{stay_is_valid_alternative}, "
+         f"safe_area={safe_area}, "
+         f"scored_safe_area={scored_safe_area}, "
+         f"capture_improved={capture_improved}, "
+         f"safe_area_improved={safe_area_improved}, "
+         f"utility_improved={utility_improved}, "
+         f"utility_supported="
+         f"{utility_has_real_support}, "
+         f"future_merit={has_future_merit}, "
+         f"meritless_approach={meritless_approach}, "
+         f"blocked_approach={blocked_approach}, "
+         f"candidate_dead_end_mouth="
+         f"{candidate['candidate_dead_end_mouth']}, "
+         f"dead_end_entry_depth="
+         f"{candidate['dead_end_entry_depth']}, "
+         f"enters_dead_end="
+         f"{candidate['enters_dead_end']}, "
+         f"avoidable_dead_end_entry="
+         f"{candidate['avoidable_dead_end_entry']}, "
+         f"dead_end_mouth={dead_end_mouth}, "
+         f"dead_end_depth="
+         f"{candidate['dead_end_depth']}, "
+         f"dead_end_slack="
+         f"{candidate['dead_end_slack']}, "
+         f"current_dead_end_slack="
+         f"{current_dead_end_slack}, "
+         f"must_exit_dead_end="
+         f"{must_exit_dead_end}, "
+         f"toward_dead_end_exit="
+         f"{candidate['toward_dead_end_exit']}, "
+         f"deeper_into_dead_end="
+         f"{candidate['deeper_into_dead_end']}, "
+         f"dead_end_delay={dead_end_delay}, "
+         f"dead_end_retreat={dead_end_retreat}, "
+         f"worst_utility="
+         f"{candidate['worst_utility']}, "
+         f"final={final_score}"
+      )
 
       if (
          best_rank is None
@@ -1393,18 +1390,18 @@ def choose_move(
          best_move = candidate["move"]
          best_position = candidate["position"]
 
-   # log(
-   #    f"   Chosen move={best_move}, "
-   #    f"from={ghost_pos}, "
-   #    f"to={best_position}, "
-   #    f"score={best_final_score}"
-   # )
+   log(
+      f"   Chosen move={best_move}, "
+      f"from={ghost_pos}, "
+      f"to={best_position}, "
+      f"score={best_final_score}"
+   )
 
-   # log(
-   #    f"   Cache sizes: "
-   #    f"sim={len(simulation_cache)}, "
-   #    f"bfs={len(distance_cache)}, "
-   #    f"capture={len(capture_cache)}"
-   # )
+   log(
+      f"   Cache sizes: "
+      f"sim={len(simulation_cache)}, "
+      f"bfs={len(distance_cache)}, "
+      f"capture={len(capture_cache)}"
+   )
 
    return best_move

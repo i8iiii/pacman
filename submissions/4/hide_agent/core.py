@@ -1,6 +1,7 @@
 # hide_agent/core.py
 
 from collections import deque
+from heapq import heappop, heappush
 from environment import Move
 
 
@@ -194,15 +195,75 @@ def capture_turn_distance(
    """
    Minimum number of Pacman turns needed to reach Ghost's capture zone,
    assuming Ghost stays at ghost_pos.
+
+   This is a point-to-goal query, so A* avoids building the complete
+   distance map that the previous BFS implementation produced. One edge
+   still represents one Pacman turn, including every legal speed choice.
    """
-   distances = pacman_turn_distances(pacman_pos, map_state, pacman_speed)
+   if not is_valid_position(pacman_pos, map_state):
+      return INF
 
-   best = INF
+   goals = set(capture_zone(ghost_pos, map_state))
 
-   for cell in capture_zone(ghost_pos, map_state):
-      best = min(best, distances.get(cell, INF))
+   if not goals:
+      return INF
 
-   return best
+   if pacman_pos in goals:
+      return 0
+
+   pacman_speed = max(1, int(pacman_speed))
+
+   def heuristic(pos: tuple[int, int]) -> int:
+      """Admissible lower bound on turns to any capture-zone cell."""
+      cell_distance = min(
+         manhattan(pos, goal)
+         for goal in goals
+      )
+
+      return (
+         cell_distance + pacman_speed - 1
+      ) // pacman_speed
+
+   best_turns = {pacman_pos: 0}
+   frontier = [(
+      heuristic(pacman_pos),
+      0,
+      pacman_pos,
+   )]
+
+   while frontier:
+      _, turns, current = heappop(frontier)
+
+      if turns != best_turns.get(current):
+         continue
+
+      if current in goals:
+         return turns
+
+      next_turns = turns + 1
+
+      for action in legal_pacman_actions(
+         current,
+         map_state,
+         pacman_speed,
+      ):
+         new_pos = apply_pacman_action(
+            current,
+            action,
+            map_state,
+         )
+
+         if next_turns >= best_turns.get(new_pos, INF):
+            continue
+
+         best_turns[new_pos] = next_turns
+         priority = next_turns + heuristic(new_pos)
+         heappush(
+            frontier,
+            (priority, next_turns, new_pos),
+         )
+
+   return INF
 
 
 def exit_count(pos: tuple, map_state) -> int:

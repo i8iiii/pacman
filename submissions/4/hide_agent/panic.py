@@ -1,7 +1,7 @@
 # hide_agent/panic.py
 
 from environment import Move
-# from debug import debug
+from debug import debug
 
 from .core import (
    INF,
@@ -61,11 +61,12 @@ def choose_move(map_state, ghost_pos: tuple, pacman_pos: tuple) -> Move:
       next_pos = next_position(ghost_pos, move)
       distance = distances.get(next_pos, INF)
 
-      # debug.log(f"   {move} to Position={next_pos}, Distance={distance}")
+      debug.log(f"   {move} to Position={next_pos}, Distance={distance}")
 
       if distance > best_distance:
          best_distance = distance
          best_move = move
 
-   # debug.log(f"   Final Move={best_move}, Position={next_pos}")
+   best_position = next_position(ghost_pos, best_move)
+   debug.log(f"   Final Move={best_move}, Position={best_position}")
    return best_move
