@@ -187,7 +187,6 @@ class GhostAgent(BaseGhostAgent):
         self.previous_position = None
 
         debug.clear_log()
-        debug.log("- - AGENT INITIALIZED - -")
 
     def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int) -> Move:
         control.reset_timer()
@@ -201,21 +200,55 @@ class GhostAgent(BaseGhostAgent):
         my_position = (int(my_position[0]), int(my_position[1]))
         enemy_position = (int(enemy_position[0]), int(enemy_position[1]))
 
-        move = self._choose_move(map_state, my_position, enemy_position, self.pacman_speed)
+        mode = (
+            "PANIC"
+            if panic.should_panic(enemy_position, my_position, map_state, self.pacman_speed)
+            else "CONTROL"
+        )
+        debug.start_turn(
+            step_number,
+            mode,
+            my_position,
+            enemy_position,
+            self.previous_position,
+        )
+
+        try:
+            move = self._choose_move(
+                map_state,
+                my_position,
+                enemy_position,
+                self.pacman_speed,
+                mode,
+            )
+        except Exception as error:
+            debug.log_exception(error)
+            debug.finish_turn(control.get_run_time())
+            raise
+
         self.previous_position = my_position
 
         if not isinstance(move, Move):
+            debug.event("invalid-move", returned=repr(move), fallback="STAY")
+            debug.decision(Move.STAY, my_position, "agent returned an invalid move")
+            debug.finish_turn(control.get_run_time())
             return Move.STAY
 
-        debug.log(f"[STEP] move={move}, time={control.get_run_time() / 1000:.3f} s\n\n")
+        debug.finish_turn(control.get_run_time())
         return move
 
-    def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2):
+    def _choose_move(self, map_state: np.ndarray, my_position: tuple[int, int], enemy_position: tuple[int, int], pacman_speed=2, mode=None):
         if enemy_position is None:
             return Move.STAY
+
+        if mode is None:
+            mode = (
+                "PANIC"
+                if panic.should_panic(enemy_position, my_position, map_state, pacman_speed)
+                else "CONTROL"
+            )
         
-        if panic.should_panic(enemy_position, my_position, map_state, pacman_speed):
-            debug.log(f"[PANIC] Pacman={enemy_position}, Ghost{my_position}")
+        if mode == "PANIC":
             return panic.choose_move(map_state, my_position, enemy_position)
         
         return control.choose_move(
