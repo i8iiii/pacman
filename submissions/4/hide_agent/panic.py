@@ -61,12 +61,12 @@ def choose_move(map_state, ghost_pos: tuple, pacman_pos: tuple) -> Move:
       next_pos = next_position(ghost_pos, move)
       distance = distances.get(next_pos, INF)
 
-      debug.log(f"   {move} to Position={next_pos}, Distance={distance}")
+      debug.candidate(move, next_pos, distance=distance)
 
       if distance > best_distance:
          best_distance = distance
          best_move = move
 
    best_position = next_position(ghost_pos, best_move)
-   debug.log(f"   Final Move={best_move}, Position={best_position}")
+   debug.decision(best_move, best_position, "greatest maze distance")
    return best_move

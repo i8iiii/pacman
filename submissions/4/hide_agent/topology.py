@@ -22,7 +22,7 @@ from pathlib import Path
 
 def get_map_path() -> Path:
    submission_dir = Path(__file__).resolve().parent.parent
-   return submission_dir / "debug" / "map.txt"
+   return submission_dir / "debug" / "topology_map.txt"
 
 
 def valid_neighbors(pos: tuple, map_state) -> list[tuple]:
