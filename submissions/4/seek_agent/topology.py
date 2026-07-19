@@ -14,21 +14,39 @@ PACMAN_MOVES = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
 INF = 10 ** 9
 
 
+# ── precomputation utilities ─────────────────────────────────────
+
+def precompute_valid_positions(map_state):
+    """Return set of (r, c) positions that are walkable (value == 0)."""
+    import numpy as np
+    h, w = map_state.shape
+    return {(r, c) for r in range(h) for c in range(w) if map_state[r, c] == 0}
+
+
+def is_valid_fast(pos, valid_positions):
+    """O(1) check if pos is walkable using precomputed set."""
+    return pos in valid_positions
+
+
+def manhattan_distance(a, b):
+    """Manhattan distance between two (r, c) positions."""
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+# ── existing topology analysis ───────────────────────────────────
+
 def _valid(pos, map_state):
     r, c = pos
     h, w = map_state.shape
     return 0 <= r < h and 0 <= c < w and map_state[r, c] == 0
-
 
 def _neighbors(pos, map_state):
     return [(pos[0] + m.value[0], pos[1] + m.value[1])
             for m in PACMAN_MOVES
             if _valid((pos[0] + m.value[0], pos[1] + m.value[1]), map_state)]
 
-
 def _exits(pos, map_state):
     return len(_neighbors(pos, map_state))
-
 
 def classify_cell(exits):
     if exits <= 1:
@@ -36,7 +54,6 @@ def classify_cell(exits):
     if exits == 2:
         return "CORRIDOR"
     return "JUNCTION"
-
 
 def junction_distance(pos, map_state, max_depth=10):
     """Distance to nearest junction (>=3 exits)."""
@@ -58,7 +75,6 @@ def junction_distance(pos, map_state, max_depth=10):
                 q.append((n, d + 1))
     return max_depth + 1
 
-
 def local_area(pos, map_state, limit=6):
     """Number of reachable cells within *limit* BFS steps."""
     if not _valid(pos, map_state):
@@ -75,7 +91,6 @@ def local_area(pos, map_state, limit=6):
                 q.append((n, d + 1))
     return len(seen)
 
-
 # Weights: negative = advantageous for Pacman (ghost in trappable area)
 TRAP_WEIGHTS = {
     "dead_end":       -900,
@@ -86,7 +101,6 @@ TRAP_WEIGHTS = {
     "at_junction":     400,
     "junction_dist":  -100,
 }
-
 
 def trap_score(pos, map_state):
     """Score a cell from Pacman's perspective.
@@ -116,7 +130,6 @@ def trap_score(pos, map_state):
         score += min(jd, 8) * TRAP_WEIGHTS["junction_dist"]
 
     return score
-
 
 def build_trap_map(map_state):
     """Return {pos: int} trap scores for all walkable cells."""
