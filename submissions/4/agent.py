@@ -1,54 +1,228 @@
+"""
+PacmanAgent: 6-ply Minimax with Alpha-Beta pruning, topology-aware ghost model.
+
+The ghost model mirrors the reference/5 hide agent's scoring:
+    distance * 10  +  exit_count * 3
+
+Line-of-sight escape incentive and dead-end preferences are also modelled.
+"""
+
 import sys
+from collections import deque
 from pathlib import Path
+
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from agent_interface import PacmanAgent as BasePacmanAgent
 from environment import Move
 import numpy as np
-from collections import deque
-import heapq
 
-DIRS = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
+DIRS = (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT)
 INF = 10 ** 9
 
 
 class PacmanAgent(BasePacmanAgent):
-    """Pacman seeker: A* for long range, Minimax Alpha-Beta (depth 6) when close.
+    """
+    6-ply Minimax seeker with Alpha-Beta pruning.
 
-    Uses BFS distance threshold to switch: A* above threshold, minimax below.
-    Minimax models the ghost as maximising BFS distance from Pacman.
+    The Ghost is modelled using the same topology-inspired scoring that
+    the reference/5 hide agent actually uses, so the minimax tree
+    anticipates the real opponent's decisions.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.name = "HomeLander"
         self.pacman_speed = max(1, int(kwargs.get("pacman_speed", 1)))
+        self.name = "TopoMinimax6"
         self._valid = None
         self._bfs_cache = {}
         self._pair_dist = {}
+        self._exit_cache = {}
+
+    # ---------- precomputation ------------------------------------------
+
+    def _precompute(self, map_state):
+        h, w = map_state.shape
+        self._valid = {
+            (r, c) for r in range(h) for c in range(w)
+            if map_state[r, c] == 0
+        }
+        for pos in self._valid:
+            self._exit_cache[pos] = sum(
+                1 for mv in DIRS
+                if (pos[0] + mv.value[0], pos[1] + mv.value[1]) in self._valid
+            )
+
+    # ---------- step entry point ----------------------------------------
 
     def step(self, map_state, my_position, enemy_position, step_number):
         if enemy_position is None:
             return (Move.STAY, 1)
+
         my_pos = (int(my_position[0]), int(my_position[1]))
         enemy_pos = (int(enemy_position[0]), int(enemy_position[1]))
+
         if self._valid is None:
             self._precompute(map_state)
+
         if self._manhattan(my_pos, enemy_pos) < 2:
             return (Move.STAY, 1)
-        dist = self._bfs_dist(my_pos, enemy_pos)
-        if dist > 10:
-            return self._astar_chase(my_pos, enemy_pos)
-        else:
-            return self._minimax_root(my_pos, enemy_pos)
 
-    def _precompute(self, map_state):
-        h, w = map_state.shape
-        self._valid = {(r, c) for r in range(h) for c in range(w) if map_state[r, c] == 0}
-        self._bfs_cache.clear(); self._pair_dist.clear()
+        self._bfs_cache.clear()
+        self._pair_dist.clear()
 
-    def _bfs_from(self, start):
+        return self._minimax_root(my_pos, enemy_pos)
+
+    # ---------- minimax search ------------------------------------------
+
+    def _minimax_root(self, pac_pos, ghost_pos):
+        """Pacman chooses the root action that maximises the minimax score."""
+        actions = self._pacman_actions(pac_pos)
+        actions.sort(key=lambda a: self._bfs_dist(
+            self._apply_action(pac_pos, a), ghost_pos))
+
+        best_score, best_action = -INF, (Move.STAY, 1)
+        alpha, beta = -INF, INF
+
+        for action in actions:
+            new_pac = self._apply_action(pac_pos, action)
+            score = self._min_node(new_pac, ghost_pos, 6, alpha, beta)
+            if score > best_score:
+                best_score = score
+                best_action = action
+            alpha = max(alpha, score)
+
+        return best_action
+
+    def _min_node(self, pac_pos, ghost_pos, depth, alpha, beta):
+        """Ghost turn -- minimise Pacman's score."""
+        if self._manhattan(pac_pos, ghost_pos) < 2:
+            return 100000 + depth
+
+        if depth == 0:
+            return self._evaluate(pac_pos, ghost_pos)
+
+        ghost_moves = self._scored_ghost_moves(pac_pos, ghost_pos)
+        best = INF
+
+        for new_ghost, _ in ghost_moves:
+            val = self._max_node(pac_pos, new_ghost, depth - 1, alpha, beta)
+            if val < best:
+                best = val
+            if best <= alpha:
+                return best
+            beta = min(beta, best)
+
+        if best == INF:
+            return self._evaluate(pac_pos, ghost_pos)
+        return best
+
+    def _max_node(self, pac_pos, ghost_pos, depth, alpha, beta):
+        """Pacman turn -- maximise score."""
+        if self._manhattan(pac_pos, ghost_pos) < 2:
+            return 100000 + depth
+
+        if depth == 0:
+            return self._evaluate(pac_pos, ghost_pos)
+
+        actions = self._pacman_actions(pac_pos)
+        if not actions:
+            return self._evaluate(pac_pos, ghost_pos)
+
+        actions.sort(key=lambda a: self._bfs_dist(
+            self._apply_action(pac_pos, a), ghost_pos))
+
+        best = -INF
+        for action in actions:
+            new_pac = self._apply_action(pac_pos, action)
+            val = self._min_node(new_pac, ghost_pos, depth - 1, alpha, beta)
+            if val > best:
+                best = val
+            if best >= beta:
+                return best
+            alpha = max(alpha, best)
+
+        return best
+
+    # ---------- ghost move scoring (mirrors reference/5 GhostAgent) -----
+
+    def _scored_ghost_moves(self, pac_pos, ghost_pos):
+        """
+        Score each ghost move identically to reference/5's GhostAgent:
+            distance * 10  +  exit_count * 3
+
+        An extra bonus is added for perpendicular turns when ghost and
+        pacman are aligned on a clear row or column (matching the
+        _aligned_axis / _fastest_turn_move escape logic).
+        """
+        moves = []
+        aligned = self._aligned_with_pacman(ghost_pos, pac_pos)
+        perpendicular = self._perpendicular_to(ghost_pos, pac_pos) if aligned else set()
+
+        for mv in (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT, Move.STAY):
+            if mv == Move.STAY:
+                new_pos = ghost_pos
+            else:
+                new_pos = (ghost_pos[0] + mv.value[0],
+                           ghost_pos[1] + mv.value[1])
+                if new_pos not in self._valid:
+                    continue
+
+            dist = self._bfs_dist(pac_pos, new_pos)
+            exits = self._exit_cache.get(new_pos, 0)
+            score = dist * 10 + exits * 3
+
+            if mv in perpendicular:
+                score += 30
+
+            moves.append((new_pos, score))
+
+        moves.sort(key=lambda x: x[1], reverse=True)
+        return moves
+
+    def _aligned_with_pacman(self, ghost_pos, pac_pos):
+        if ghost_pos[0] == pac_pos[0]:
+            left, right = sorted((ghost_pos[1], pac_pos[1]))
+            return all((ghost_pos[0], c) in self._valid
+                       for c in range(left + 1, right))
+        if ghost_pos[1] == pac_pos[1]:
+            top, bottom = sorted((ghost_pos[0], pac_pos[0]))
+            return all((r, ghost_pos[1]) in self._valid
+                       for r in range(top + 1, bottom))
+        return False
+
+    def _perpendicular_to(self, ghost_pos, pac_pos):
+        if ghost_pos[0] == pac_pos[0]:
+            return {Move.UP, Move.DOWN}
+        return {Move.LEFT, Move.RIGHT}
+
+    # ---------- evaluation ----------------------------------------------
+
+    def _evaluate(self, pac_pos, ghost_pos):
+        """
+        Pacman-centric evaluation (higher = better for Pacman).
+
+        Mirrors the reference/5 ghost's own scoring, which the ghost
+        tries to maximise.  Pacman therefore tries to minimise it.
+        """
+        dist = self._bfs_dist(pac_pos, ghost_pos)
+        exits = self._exit_cache.get(ghost_pos, 0)
+        return -(dist * 10 + exits * 3)
+
+    # ---------- BFS distance helpers ------------------------------------
+
+    def _bfs_dist(self, a, b):
+        if a == b:
+            return 0
+        if a not in self._valid or b not in self._valid:
+            return INF
+        key = (a, b)
+        if key not in self._pair_dist:
+            self._pair_dist[key] = self._bfs_compute(a).get(b, INF)
+        return self._pair_dist[key]
+
+    def _bfs_compute(self, start):
         if start not in self._bfs_cache:
             dist = {start: 0}
             q = deque([start])
@@ -62,146 +236,42 @@ class PacmanAgent(BasePacmanAgent):
             self._bfs_cache[start] = dist
         return self._bfs_cache[start]
 
-    def _bfs_dist(self, a, b):
-        if a == b: return 0
-        k = (a, b)
-        if k not in self._pair_dist:
-            self._pair_dist[k] = self._bfs_from(a).get(b, INF)
-        return self._pair_dist[k]
-
-    def _astar_chase(self, my_pos, enemy_pos):
-        path = self._astar(my_pos, enemy_pos)
-        if path and len(path) >= 2:
-            return self._follow_path(my_pos, path)
-        return self._greedy(my_pos, enemy_pos)
-
-    def _astar(self, start, goal):
-        if start == goal or start not in self._valid or goal not in self._valid:
-            return None
-        frontier = [(0, start)]
-        came_from = {start: None}; cost = {start: 0}
-        while frontier:
-            _, cur = heapq.heappop(frontier)
-            if cur == goal: break
-            for mv in DIRS:
-                nxt = (cur[0]+mv.value[0], cur[1]+mv.value[1])
-                if nxt not in self._valid: continue
-                nc = cost[cur] + 1
-                if nxt not in cost or nc < cost[nxt]:
-                    cost[nxt] = nc
-                    heapq.heappush(frontier, (nc + self._manhattan(nxt, goal), nxt))
-                    came_from[nxt] = cur
-        if goal not in came_from: return None
-        path = []; cur = goal
-        while cur is not None: path.append(cur); cur = came_from[cur]
-        path.reverse(); return path
-
-    def _follow_path(self, my_pos, path):
-        nxt = path[1]
-        dr, dc = nxt[0]-my_pos[0], nxt[1]-my_pos[1]
-        direction = Move.DOWN if dr>0 else Move.UP if dr<0 else Move.RIGHT if dc>0 else Move.LEFT
-        consecutive = 0; cur = my_pos
-        for node in path[1:]:
-            ndr, ndc = node[0]-cur[0], node[1]-cur[1]
-            nd = Move.DOWN if ndr>0 else Move.UP if ndr<0 else Move.RIGHT if ndc>0 else Move.LEFT
-            if nd != direction: break
-            cur = node; consecutive += 1
-        return (direction, max(1, min(consecutive, self.pacman_speed)))
-
-    def _greedy(self, my_pos, target):
-        best_move, best_steps, best_dist = Move.STAY, 1, self._manhattan(my_pos, target)
-        for mv in DIRS:
-            r, c = my_pos; valid_steps = 0
-            for _ in range(self.pacman_speed):
-                r += mv.value[0]; c += mv.value[1]
-                if (r,c) not in self._valid: break
-                valid_steps += 1
-            for s in range(1, valid_steps+1):
-                dist = self._manhattan((my_pos[0]+mv.value[0]*s, my_pos[1]+mv.value[1]*s), target)
-                if dist < best_dist: best_dist, best_move, best_steps = dist, mv, s
-        return (best_move, best_steps)
-
-    def _minimax_root(self, pac_pos, ghost_pos):
-        actions = self._pacman_actions(pac_pos)
-        actions.sort(key=lambda a: self._bfs_dist(self._apply_action(pac_pos, a), ghost_pos))
-        best_score, best_action = -INF, (Move.STAY, 1)
-        alpha, beta = -INF, INF
-        for action in actions:
-            new_pac = self._apply_action(pac_pos, action)
-            score = self._min_node(new_pac, ghost_pos, 6, alpha, beta)
-            if score > best_score: best_score = score; best_action = action
-            alpha = max(alpha, score)
-        return best_action
-
-    def _min_node(self, new_pac, ghost_pos, depth, alpha, beta):
-        ghost_opts = self._ghost_positions(ghost_pos)
-        ghost_opts.sort(key=lambda g: -self._bfs_dist(new_pac, g[0]))
-        best = INF
-        for new_ghost, _ in ghost_opts:
-            if self._manhattan(new_pac, new_ghost) < 2:
-                val = 10000 + depth
-            elif depth <= 1:
-                val = self._heuristic(new_pac, new_ghost)
-            else:
-                val = self._max_node(new_pac, new_ghost, depth - 1, alpha, beta)
-            best = min(best, val)
-            if best <= alpha: return best
-            beta = min(beta, best)
-        return best
-
-    def _max_node(self, pac_pos, ghost_pos, depth, alpha, beta):
-        actions = self._pacman_actions(pac_pos)
-        if not actions: return self._heuristic(pac_pos, ghost_pos)
-        actions.sort(key=lambda a: self._bfs_dist(self._apply_action(pac_pos, a), ghost_pos))
-        best = -INF
-        for action in actions:
-            new_pac = self._apply_action(pac_pos, action)
-            val = self._min_node(new_pac, ghost_pos, depth, alpha, beta)
-            best = max(best, val)
-            if best >= beta: return best
-            alpha = max(alpha, best)
-        return best
-
-    def _heuristic(self, pac_pos, ghost_pos):
-        dist = self._bfs_dist(pac_pos, ghost_pos)
-        mobility = self._count_exits(ghost_pos)
-        return -dist * 10 - mobility * 5
-
-    def _ghost_positions(self, ghost_pos):
-        positions = [(ghost_pos, Move.STAY)]
-        for mv in DIRS:
-            nxt = (ghost_pos[0]+mv.value[0], ghost_pos[1]+mv.value[1])
-            if nxt in self._valid: positions.append((nxt, mv))
-        return positions
-
-    def _count_exits(self, pos):
-        return sum(1 for mv in DIRS if (pos[0]+mv.value[0], pos[1]+mv.value[1]) in self._valid)
+    # ---------- Pacman action generation --------------------------------
 
     def _pacman_actions(self, pos):
         actions = []
         for mv in DIRS:
             r, c = pos
-            for s in range(1, self.pacman_speed + 1):
-                r += mv.value[0]; c += mv.value[1]
-                if (r, c) not in self._valid: break
+            valid_steps = 0
+            for _ in range(self.pacman_speed):
+                r += mv.value[0]
+                c += mv.value[1]
+                if (r, c) not in self._valid:
+                    break
+                valid_steps += 1
+            for s in range(1, valid_steps + 1):
                 actions.append((mv, s))
         return actions if actions else [(Move.STAY, 1)]
 
     def _apply_action(self, pos, action):
         move, steps = action
-        if move == Move.STAY: return pos
+        if move == Move.STAY:
+            return pos
         r, c = pos
         for _ in range(steps):
             nr, nc = r + move.value[0], c + move.value[1]
-            if (nr, nc) not in self._valid: break
+            if (nr, nc) not in self._valid:
+                break
             r, c = nr, nc
         return (r, c)
 
     @staticmethod
     def _manhattan(a, b):
-        return abs(a[0]-b[0]) + abs(a[1]-b[1])
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
+# ===================================================================
+# GhostAgent preserved from the original submission.
 # ===================================================================
 from agent_interface import GhostAgent as BaseGhostAgent
 from environment import Move
