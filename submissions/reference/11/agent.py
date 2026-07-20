@@ -15,216 +15,88 @@ import time
 import heapq #For priority queue
 from collections import deque #For BFS 
 
-#This pacman using A* algorithm and intercept method chase down enemy.
+#Bo predict vi qua bop team
+
+#This pacman using BFS to chase down enemy.
 class PacmanAgent(BasePacmanAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "YoruNiKakeru Pacman"
         self.pacman_speed = max(1, int(kwargs.get("pacman_speed", 1)))
+        self.neighbor_cache = {}
+        self.dist_cache = {}
 
-        # Ghost position
-        self.last_known_ghost_pos = None
-        self.ghost_velocity = (0, 0)       #Estimated ghost's movement direction
-        self.last_ghost_update_step = -1
+    def bfs_distance_map(self, start, map_state):
+        if start in self.dist_cache:
+            return self.dist_cache[start]
 
-        # Map
-        self.junctions = []                
-        self.dead_ends = []                
-        self.map_analyzed = False
-
-        self.current_intercept = None      
-        self.intercept_confirmed_step = -1
-
-    #Find all junctions and dead_ends on map in one time
-    def analyze_map(self, map_state):
         rows, cols = map_state.shape
-        for r in range(rows):
-            for c in range(cols):
-                if map_state[r][c] != 0:
-                    continue
-                neighbors = self._get_neighbors((r, c), map_state)
-                deg = len(neighbors)
-                if deg >= 3:
-                    self.junctions.append((r, c))
-                elif deg == 1:
-                    self.dead_ends.append((r, c))
+        dist = np.full((rows, cols), -1, dtype=np.int16)
+        q = deque([start])
+        dist[start] = 0
+
+        while q:
+            r, c = q.popleft()
+
+            for nr, nc in self._get_neighbors((r, c), map_state):
+                if dist[nr, nc] == -1:
+                    dist[nr, nc] = dist[r, c] + 1
+                    q.append((nr, nc))
+
+        self.dist_cache[start] = dist
+        return dist
+    
+    def next_move(self, my_pos, goal, map_state):
+
+        dist = self.bfs_distance_map(goal, map_state)
+        best_move = Move.STAY
+        best_steps = 1
+        best_dist = dist[my_pos]
+
+        for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+            cur = my_pos
+            steps = 0
+
+            while steps < self.pacman_speed:
+                nr = cur[0] + move.value[0]
+                nc = cur[1] + move.value[1]
+                if not self._is_valid_position((nr, nc), map_state):
+                    break
+
+                cur = (nr, nc)
+                steps += 1
+
+                if dist[cur] != -1 and dist[cur] < best_dist:
+                    best_dist = dist[cur]
+                    best_move = move
+                    best_steps = steps
+
+        return (best_move, best_steps)
 
     #Find all possible cells nearby
     def _get_neighbors(self, pos, map_state):
-        result = []
-        for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-            dr, dc = move.value
-            npos = (pos[0] + dr, pos[1] + dc)
-            if self._is_valid_position(npos, map_state):
-                result.append(npos)
-        return result
 
-    #Make a map with all cost to any cells
-    def bfs_cost(self, start, map_state):
-        if not self._is_valid_position(start, map_state):
-            return {}
-        rows, cols = map_state.shape
-        cost = {}
-        queue = deque()
-        cost[start] = 0
-        queue.append(start)
-        while queue:
-            cur = queue.popleft()
-            for nb in self._get_neighbors(cur, map_state):
-                if nb not in cost:
-                    cost[nb] = cost[cur] + 1
-                    queue.append(nb)
-        return cost
+        if pos in self.neighbor_cache:
+            return self.neighbor_cache[pos]
 
-    def a_star(self, start, goal, map_state):
-        def h(p): return abs(p[0] - goal[0]) + abs(p[1] - goal[1])
-        heap = [(h(start), start)]
-        g = {start: 0}
-        parent = {}
-        while heap:
-            f, cur = heapq.heappop(heap)
-            if cur == goal:
-                return parent
-            if f > g.get(cur, 0) + h(cur):
-                continue
-            for nb in self._get_neighbors(cur, map_state):
-                ng = g[cur] + 1
-                if ng < g.get(nb, float('inf')):
-                    g[nb] = ng
-                    parent[nb] = cur
-                    heapq.heappush(heap, (ng + h(nb), nb))
-        return parent
+        r, c = pos
+        h, w = map_state.shape
+        out = []
 
-    #Make a way from goal back to start after get ways from a_star
-    def reconstruct_path(self, parent, start, goal):
-        if goal not in parent and goal != start:
-            return []
-        path = []
-        cur = goal
-        while cur != start:
-            path.append(cur)
-            cur = parent[cur]
-        path.append(start)
-        path.reverse()
-        return path
+        if r > 0 and map_state[r-1, c] == 0:
+            out.append((r-1, c))
 
-    #Return path from pos start to goal, this is the function that mixes reconstruct_path and a_star for convenient 
-    def path_to(self, start, goal, map_state):
-        parent = self.a_star(start, goal, map_state)
-        return self.reconstruct_path(parent, start, goal)
+        if r + 1 < h and map_state[r+1, c] == 0:
+            out.append((r+1, c))
 
-    #Predict all the cells that ghost maybe move in
-    def predict_ghost_positions(self, ghost_pos, pac_cost_from_ghost, map_state, steps_ahead=6):
-        reachable = {ghost_pos: 0}
-        frontier = deque([(ghost_pos, 0)])
-        while frontier:
-            pos, steps = frontier.popleft()
-            if steps >= steps_ahead:
-                continue
-            for nb in self._get_neighbors(pos, map_state):
-                if nb not in reachable:
-                    reachable[nb] = steps + 1
-                    frontier.append((nb, steps + 1))
-        return reachable
-    
-    #Estimate the ghost's direction of movement from two consecutive locations.
-    def estimate_ghost_velocity(self, ghost_pos, step_number):
-        if self.last_known_ghost_pos and self.last_ghost_update_step == step_number - 1:
-            dr = ghost_pos[0] - self.last_known_ghost_pos[0]
-            dc = ghost_pos[1] - self.last_known_ghost_pos[1]
-            dr = max(-1, min(1, dr))
-            dc = max(-1, min(1, dc))
-            self.ghost_velocity = (dr, dc)
-        return self.ghost_velocity
-    
-    #Find best intercept with the junctions and dead_ends that near ghost as close as possible
-    #And also make sure that Pacman arrive to that cell earlier than ghost
-    def find_best_intercept(self, my_pos, ghost_pos, pac_cost, ghost_cost, map_state):
+        if c > 0 and map_state[r, c-1] == 0:
+            out.append((r, c-1))
 
-        best_pos = None
-        best_score = float('-inf')
-        candidates = self.junctions + self.dead_ends
-        if not candidates:
-            return ghost_pos, 0
+        if c + 1 < w and map_state[r, c+1] == 0:
+            out.append((r, c+1))
 
-        for cand in candidates:
-            p_dist = pac_cost.get(cand)
-            g_dist = ghost_cost.get(cand)
-
-            if p_dist is None or g_dist is None:
-                continue
-
-            pac_time = p_dist / (self.pacman_speed * 1.5) # 1.5 because pac speed = 2 or = 1 if corner, so avg = 1.5
-            ghost_time = g_dist  # ghost speed = 1
-
-            if pac_time > ghost_time + 0.5:
-                continue
-
-            advantage = ghost_time - pac_time   
-            proximity = -g_dist                 
-            is_dead_end = 1 if cand in self.dead_ends else 0
-
-            score = advantage * 10 + proximity * 2 + is_dead_end * 5
-
-            if score > best_score:
-                best_score = score
-                best_pos = cand
-
-        return best_pos, best_score
-
-    #Assume Ghost is moving straight along the velocity and Pacman has the ability to intercept
-    def find_direct_intercept(self, my_pos, ghost_pos, ghost_velocity, pac_cost, map_state):
-        if ghost_velocity == (0, 0):
-            return None
-
-        dr, dc = ghost_velocity
-        best = None
-        best_dist = float('inf')
-
-        pos = ghost_pos
-        for steps in range(1, 11):
-            next_pos = (pos[0] + dr, pos[1] + dc)
-            if not self._is_valid_position(next_pos, map_state):
-                break
-            pos = next_pos
-
-            p_dist = pac_cost.get(pos)
-            if p_dist is None:
-                continue
-
-            pac_time = p_dist / (self.pacman_speed * 1.5)
-            ghost_time = steps
-
-            if pac_time <= ghost_time - 1:
-                if p_dist < best_dist:
-                    best_dist = p_dist
-                    best = pos
-
-        return best
-
-    def follow_path(self, path, my_pos):
-        if len(path) < 2:
-            return (Move.STAY, 1)
-
-        next_pos = path[1]
-        dr = next_pos[0] - my_pos[0]
-        dc = next_pos[1] - my_pos[1]
-
-        if dr > 0:   move = Move.DOWN
-        elif dr < 0: move = Move.UP
-        elif dc > 0: move = Move.RIGHT
-        else:         move = Move.LEFT
-
-        steps = 1
-        for i in range(2, len(path)):
-            dri = path[i][0] - path[i-1][0]
-            dci = path[i][1] - path[i-1][1]
-            if dri == dr and dci == dc:
-                steps += 1
-            else:
-                break
-
-        return (move, min(steps, self.pacman_speed))
+        self.neighbor_cache[pos] = out
+        return out
 
     def explore(self, my_pos, map_state):
         moves = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
@@ -235,75 +107,12 @@ class PacmanAgent(BasePacmanAgent):
                 return (move, steps)
         return (Move.STAY, 1)
 
-    def step(self, map_state: np.ndarray, my_position: tuple, enemy_position: tuple, step_number: int):
+    def step(self, map_state, my_position, enemy_position, step_number):
 
-        if not self.map_analyzed:
-            self.analyze_map(map_state)
-            self.map_analyzed = True
-
-        if enemy_position is not None:
-            self.estimate_ghost_velocity(enemy_position, step_number)
-            self.last_known_ghost_pos = enemy_position
-            self.last_ghost_update_step = step_number
-            ghost_pos = enemy_position
-        elif self.last_known_ghost_pos is not None:
-            dr, dc = self.ghost_velocity
-            predicted = (self.last_known_ghost_pos[0] + dr,
-                         self.last_known_ghost_pos[1] + dc)
-            if self._is_valid_position(predicted, map_state):
-                ghost_pos = predicted
-            else:
-                ghost_pos = self.last_known_ghost_pos
-        else:
+        if enemy_position is None:
             return self.explore(my_position, map_state)
 
-        pac_cost = self.bfs_cost(my_position, map_state)
-        ghost_cost = self.bfs_cost(ghost_pos, map_state)
-
-        ghost_real_dist = pac_cost.get(ghost_pos)
-        if ghost_real_dist is None:
-            return self.explore(my_position, map_state)
-
-        effective_speed = self.pacman_speed * 1.5
-        if ghost_real_dist <= effective_speed * 3:
-            path = self.path_to(my_position, ghost_pos, map_state)
-            if path and len(path) >= 2:
-                return self.follow_path(path, my_position)
-
-        direct_intercept = self.find_direct_intercept(my_position, ghost_pos, self.ghost_velocity, pac_cost, map_state)
-        intercept_pos, intercept_score = self.find_best_intercept(my_position, ghost_pos, pac_cost, ghost_cost, map_state)
-        goal = None
-
-        if direct_intercept is not None:
-            d_pac = pac_cost.get(direct_intercept, float('inf'))
-            d_ghost = ghost_cost.get(direct_intercept, float('inf'))
-            if d_pac / effective_speed < d_ghost:
-                goal = direct_intercept
-
-        if goal is None:
-            if (self.current_intercept is not None and \
-                self.intercept_confirmed_step >= step_number - 5):
-                cp = self.current_intercept
-                cp_pac = pac_cost.get(cp, float('inf'))
-                cp_ghost = ghost_cost.get(cp, float('inf'))
-                if cp_pac / effective_speed <= cp_ghost and cp_pac > 0:
-                    goal = cp
-
-            if goal is None and intercept_pos is not None:
-                self.current_intercept = intercept_pos
-                self.intercept_confirmed_step = step_number
-                goal = intercept_pos
-
-        if goal is None:
-            goal = ghost_pos
-
-        path = self.path_to(my_position, goal, map_state)
-        if not path or len(path) < 2:
-            path = self.path_to(my_position, ghost_pos, map_state)
-            if not path or len(path) < 2:
-                return self.explore(my_position, map_state)
-
-        return self.follow_path(path, my_position)
+        return self.next_move(my_position, enemy_position, map_state)
 
     def _is_valid_position(self, pos, map_state):
         row, col = pos
@@ -324,7 +133,6 @@ class PacmanAgent(BasePacmanAgent):
             steps += 1
             cur = npos
         return steps
-
 
 
 class GhostAgent(BaseGhostAgent):
@@ -511,10 +319,10 @@ class GhostAgent(BaseGhostAgent):
             if self.is_in_los(ghost_pos, pacman_pos, map_state):
                 score -= 200 
             
-            # --- VÃ Lá»–I HORIZON EFFECT: Há»† THá»NG Cáº¢NH BÃO ÄÆ¯á»œNG Háº¦M ---
+            # --- VÃ  Lá»–I HORIZON EFFECT: Há»† THá» NG Cáº¢NH BÃ O Ä Æ¯á»œNG Háº¦M ---
             d_junc = self.dist_to_junction.get(ghost_pos, 0)
             if d_junc > 0:
-                # Náº¿u thá»i gian Pacman Ä‘uá»•i tá»›i nhá» hÆ¡n thá»i gian Ghost láº¿t Ä‘Æ°á»£c ra khá»i háº»m -> Tá»± sÃ¡t!
+                # Náº¿u thá» i gian Pacman Ä‘uá»•i tá»›i nhá»  hÆ¡n thá» i gian Ghost láº¿t Ä‘Æ°á»£c ra khá» i háº»m -> Tá»± sÃ¡t!
                 if (dist_to_pacman / 1.5) <= d_junc:
                     score -= 3000 
                     
@@ -537,7 +345,7 @@ class GhostAgent(BaseGhostAgent):
             min_eval = float('inf')
             valid_moves_exist = False
             
-            # --- VÃ Lá»–I XUYÃŠN THáº¤U: QUÃ‰T VA CHáº M TRÃŠN Tá»ªNG BÆ¯á»šC CHáº Y ---
+            # --- VÃ  Lá»–I XUYÃŠN THáº¤U: QUÃ‰T VA CHáº M TRÃŠN Tá»ªNG BÆ¯á»šC CHáº Y ---
             for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
                 curr = pacman_pos
                 caught = False
