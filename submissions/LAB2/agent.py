@@ -194,19 +194,42 @@ class PacmanAgent(BasePacmanAgent):
         # ── Load DQN model ──
         self.device = torch.device("cpu") if TORCH_AVAILABLE else None
         self.model = None
-        if TORCH_AVAILABLE and PacmanCNN is not None:
+        if TORCH_AVAILABLE:
             try:
-                self.model = PacmanCNN()
+                # Try importing v2 model class for auto-detection
+                try:
+                    from model import PacmanCNNv2
+                except ImportError:
+                    PacmanCNNv2 = None
+
                 current_dir = Path(__file__).parent
-                # Try multiple possible model file names
-                for model_name in ["pacman_dqn.pt", "best_pacman_dqn.pt"]:
+                checkpoint = None
+                for model_name in ["pacman_dqn_v2.pt", "pacman_dqn.pt", "best_pacman_dqn.pt"]:
                     model_path = current_dir / model_name
                     if model_path.exists():
-                        self.model.load_state_dict(
-                            torch.load(model_path, map_location=self.device, weights_only=True)
-                        )
-                        self.model.eval()
+                        checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
                         break
+
+                if checkpoint is not None:
+                    # Auto-detect v1 vs v2 by checking for conv3 key
+                    state_dict = checkpoint.get('model_state_dict', checkpoint)
+                    is_v2 = any('conv3' in k for k in state_dict.keys())
+
+                    if is_v2 and PacmanCNNv2 is not None:
+                        self.model = PacmanCNNv2()
+                    elif PacmanCNN is not None:
+                        self.model = PacmanCNN()
+                    else:
+                        self.model = None
+
+                    if self.model is not None:
+                        self.model.load_state_dict(state_dict)
+                        self.model.eval()
+
+                    # Read training epoch count for dynamic confidence threshold
+                    if isinstance(checkpoint, dict):
+                        self._total_epochs = max(1, int(checkpoint.get('training_epochs', self._total_epochs)))
+                        self._current_epoch = max(0, int(checkpoint.get('epoch', self._current_epoch)))
                 else:
                     # No trained weights found — DQN will return None
                     self.model = None
