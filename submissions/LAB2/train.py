@@ -1,19 +1,22 @@
 """
-train.py -- DQN Training Script for Pacman CNN Agent (Submission 1.2)
+train.py -- DQN Training Script for Pacman CNN Agent
 =====================================================================
-Trains the PacmanCNN model using Deep Q-Learning with:
+Trains the PacmanCNNv2 model using Deep Q-Learning with:
   - Experience Replay (ReplayBuffer)
   - Target Network (soft updates)
   - Double DQN (online selects, target evaluates)
   - Epsilon-Greedy exploration with decay
   - Fog-of-war training support
-  - CPU-only execution
+  - GPU-accelerated training (CUDA)
+  - Curriculum training (SimpleGhost → Mixed → GhostAgent phases)
+  - Upper-half explore reward for fog-of-war mode
+  - Stochastic start positions support
 
 Usage:
-    python train.py                          # Train with defaults
-    python train.py --epochs 200             # Custom epochs
-    python train.py --epochs 500 --lr 0.0005 # Custom epochs + learning rate
-    python train.py --obs-radius 5           # Train with fog of war
+    python train.py --curriculum --stochastic   # Full curriculum training
+    python train.py --phase 1                   # Run phase 1 only
+    python train.py --epochs 200                # Custom epochs (standalone)
+    python train.py --obs-radius 5              # Train with fog of war
 """
 
 import sys
@@ -33,9 +36,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from model import PacmanCNN
+from model import PacmanCNN, PacmanCNNv2
 from environment import Environment, Move
-
+from agent import GhostAgent
 
 # ============================================================
 # Configuration
@@ -45,7 +48,6 @@ Transition = namedtuple('Transition', (
     'state', 'last_move', 'action', 'reward',
     'next_state', 'next_last_move', 'done'
 ))
-
 
 class TrainingConfig:
     """All hyperparameters in one place."""
@@ -74,7 +76,15 @@ class TrainingConfig:
         self.n_actions = 4
 
         # -- Fog of War --
-        self.obs_radius = getattr(args, 'obs_radius', 0)  # 0 = full visibility
+        self.obs_radius = getattr(args, 'obs_radius', 0)
+        
+        # -- Start mode --
+        self.stochastic = getattr(args, 'stochastic', False)
+
+        # -- Curriculum phases --
+        self.simple_epochs = getattr(args, 'simple_epochs', 200)
+        self.mixed_epochs = getattr(args, 'mixed_epochs', 100)
+        self.ghost_epochs = getattr(args, 'ghost_epochs', 50)
 
         # -- Device --
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -82,8 +92,7 @@ class TrainingConfig:
         # -- Saving --
         self.save_dir = Path(__file__).parent
         self.save_every = 10
-        self.model_filename = "pacman_dqn.pt"
-
+        self.model_filename = "pacman_dqn_v2.pt"
 
 # ============================================================
 # Replay Buffer
@@ -104,9 +113,8 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-
 # ============================================================
-# Ghost Opponent (rule-based, for self-play training)
+# Ghost Opponents
 # ============================================================
 
 class SimpleGhostOpponent:
@@ -168,7 +176,6 @@ class SimpleGhostOpponent:
         h, w = map_state.shape
         return 0 <= r < h and 0 <= c < w and map_state[r, c] != 1
 
-
 # ============================================================
 # Training Environment Wrapper
 # ============================================================
@@ -177,17 +184,43 @@ class TrainingEnv:
     """
     Wraps the game Environment for DQN training.
     Manages state encoding, reward computation, and fog-of-war observations.
+    Supports opponent switching for curriculum training.
     """
 
     ALL_MOVES = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
 
-    def __init__(self, pacman_speed=2, obs_radius=0):
-        self.env = Environment(pacman_speed=pacman_speed)
-        self.ghost = SimpleGhostOpponent()
+    def __init__(self, pacman_speed=2, obs_radius=0, stochastic=False, opponent="simple"):
+        self.env = Environment(pacman_speed=pacman_speed, deterministic_starts=not stochastic)
         self.obs_radius = obs_radius
         self.last_pacman_move = None
         self.step_count = 0
         self.prev_distance = None
+        self._prev_fog_mask = None
+        
+        # Opponent management
+        self._opponent_mode = opponent
+        self._ghost_agent = None
+        self._simple_ghost = SimpleGhostOpponent()
+        self._init_ghost(pacman_speed)
+
+    def _init_ghost(self, pacman_speed):
+        if self._opponent_mode == "simple":
+            self.ghost = self._simple_ghost
+        elif self._opponent_mode == "ghost":
+            if self._ghost_agent is None:
+                self._ghost_agent = GhostAgent(
+                    log_path=None,
+                    diagnostics_enabled=False,
+                    pacman_speed=pacman_speed,
+                )
+            self.ghost = self._ghost_agent
+        elif self._opponent_mode == "mixed":
+            if self._ghost_agent is None:
+                self._ghost_agent = GhostAgent(
+                    log_path=None,
+                    diagnostics_enabled=False,
+                    pacman_speed=pacman_speed,
+                )
 
     def reset(self):
         """Reset environment and return initial state."""
@@ -195,8 +228,14 @@ class TrainingEnv:
         self.last_pacman_move = None
         self.step_count = 0
         self.prev_distance = self._manhattan(self.env.pacman_pos, self.env.ghost_pos)
+        
+        # Mixed mode: choose opponent per episode (70% simple, 30% ghost)
+        if self._opponent_mode == "mixed":
+            self.ghost = self._simple_ghost if random.random() < 0.7 else self._ghost_agent
+        
         state = self._encode_state()
         last_move_vec = self._encode_last_move()
+        self._prev_fog_mask = state.copy()
         return state, last_move_vec
 
     def step(self, action_idx):
@@ -243,8 +282,9 @@ class TrainingEnv:
             last_move_vec = self._encode_last_move()
             return state, last_move_vec, reward, done
 
-        # -- Compute reward --
-        reward = self._compute_reward(old_pac_pos)
+        # -- Compute reward (including explore bonus) --
+        explore_bonus = self._compute_explore_reward()
+        reward = self._compute_reward(old_pac_pos) + explore_bonus
 
         # -- Check timeout --
         done = self.step_count >= self.env.max_steps
@@ -271,6 +311,27 @@ class TrainingEnv:
         self.prev_distance = current_dist
         return reward
 
+    def _compute_explore_reward(self):
+        """Reward for uncovering fog cells, with 2x bonus for upper half."""
+        if self.obs_radius <= 0 or self._prev_fog_mask is None:
+            return 0.0
+
+        current_state = self._encode_state()
+        h, w = current_state.shape
+        mid_row = h // 2
+        total_bonus = 0.0
+
+        for r in range(h):
+            for c in range(w):
+                was_fog = self._prev_fog_mask[r, c] == -1.0
+                is_known = current_state[r, c] != -1.0
+                if was_fog and is_known and current_state[r, c] != 1.0:
+                    bonus = 2.0 if r < mid_row else 1.0
+                    total_bonus += bonus * 0.1
+
+        self._prev_fog_mask = current_state
+        return total_bonus
+
     def _is_caught(self):
         return (self.env.pacman_pos == self.env.ghost_pos or
                 self._manhattan(self.env.pacman_pos, self.env.ghost_pos) < self.env.capture_distance_threshold)
@@ -288,7 +349,6 @@ class TrainingEnv:
         state_map[self.env.pacman_pos] = 2.0
         state_map[self.env.ghost_pos] = 3.0
 
-        # Apply fog of war if obs_radius > 0
         if self.obs_radius > 0:
             visible = self.env.get_visible_cells_cross(
                 self.env.pacman_pos, self.obs_radius
@@ -308,25 +368,24 @@ class TrainingEnv:
             vec[idx] = 1.0
         return vec
 
-
 # ============================================================
 # DQN Trainer
 # ============================================================
 
 class DQNTrainer:
-    """Complete DQN training pipeline with online + target networks."""
+    """Complete DQN training pipeline with curriculum phases."""
 
     def __init__(self, config):
         self.config = config
         self.device = config.device
 
-        print(f"Pacman CNN-DQN Training Pipeline")
+        print(f"Pacman CNN-DQN v2 Training Pipeline")
         print(f"  Device: {config.device}")
         print(f"  Obs radius: {config.obs_radius}")
 
-        # -- Build Networks --
-        self.online_net = PacmanCNN(config.input_shape, config.n_actions).to(self.device)
-        self.target_net = PacmanCNN(config.input_shape, config.n_actions).to(self.device)
+        # -- Build Networks (v2 with BatchNorm) --
+        self.online_net = PacmanCNNv2(config.input_shape, config.n_actions).to(self.device)
+        self.target_net = PacmanCNNv2(config.input_shape, config.n_actions).to(self.device)
         self.target_net.load_state_dict(self.online_net.state_dict())
         self.target_net.eval()
 
@@ -344,8 +403,17 @@ class DQNTrainer:
         # -- Exploration --
         self.epsilon = config.epsilon_start
 
+        # -- Phase tracking --
+        self.current_phase = 0
+        self.cum_epoch = 0
+
         # -- Training Environment --
-        self.env = TrainingEnv(pacman_speed=2, obs_radius=config.obs_radius)
+        self.env = TrainingEnv(
+            pacman_speed=2,
+            obs_radius=config.obs_radius,
+            stochastic=config.stochastic,
+            opponent="simple",
+        )
 
         # -- Metrics --
         self.epoch_rewards = []
@@ -379,10 +447,8 @@ class DQNTrainer:
         next_last_moves = torch.FloatTensor(np.array(batch.next_last_move)).to(self.device)
         dones = torch.FloatTensor(batch.done).to(self.device)
 
-        # Current Q values
         current_q = self.online_net(states, last_moves).gather(1, actions).squeeze(1)
 
-        # Target Q values (Double DQN)
         with torch.no_grad():
             next_q_online = self.online_net(next_states, next_last_moves)
             best_next_actions = torch.argmax(next_q_online, dim=1, keepdim=True)
@@ -439,19 +505,22 @@ class DQNTrainer:
         avg_loss = np.mean(losses) if losses else 0.0
         return total_reward, caught, step + 1, avg_loss
 
-    def train(self):
-        """Main training loop."""
-        print(f"\nStarting training: {self.config.epochs} epochs x {self.config.episodes_per_epoch} episodes")
-        print(f"  Batch: {self.config.batch_size} | LR: {self.config.lr} | gamma: {self.config.gamma}")
-        print(f"  epsilon: {self.config.epsilon_start} -> {self.config.epsilon_end} (decay: {self.config.epsilon_decay})")
-        print("-" * 80)
-        print(f"{'Epoch':>6} | {'eps':>6} | {'Avg Reward':>11} | {'Catches':>8} | {'Avg Steps':>10} | {'Avg Loss':>10} | {'Time':>6}")
-        print("-" * 80)
+    def _run_phase(self, epochs, phase_name, opponent_mode):
+        """Run one curriculum phase."""
+        self.current_phase += 1
+        print(f"\n{'='*60}")
+        print(f"Phase {self.current_phase}: {phase_name}")
+        print(f"  Opponent: {opponent_mode}")
+        print(f"  Epochs: {epochs} | Current epsilon: {self.epsilon:.4f}")
+        print(f"{'='*60}")
+
+        self.env._opponent_mode = opponent_mode
+        self.env._init_ghost(pacman_speed=2)
 
         total_start = time.time()
         best_catch_rate = 0.0
 
-        for epoch in range(1, self.config.epochs + 1):
+        for epoch in range(1, epochs + 1):
             epoch_start = time.time()
             rewards = []
             catches = 0
@@ -466,10 +535,9 @@ class DQNTrainer:
                 steps_list.append(steps)
                 losses.append(avg_loss)
 
-            # Decay epsilon
             self.epsilon = max(self.config.epsilon_end, self.epsilon * self.config.epsilon_decay)
+            self.cum_epoch += 1
 
-            # Epoch metrics
             avg_reward = np.mean(rewards)
             avg_steps = np.mean(steps_list)
             avg_loss = np.mean(losses)
@@ -480,53 +548,111 @@ class DQNTrainer:
             self.epoch_catches.append(catch_rate)
             self.epoch_losses.append(avg_loss)
 
-            print(f"{epoch:>6} | {self.epsilon:>6.3f} | {avg_reward:>+11.2f} | {catches:>4}/{self.config.episodes_per_epoch:<3} | {avg_steps:>10.1f} | {avg_loss:>10.4f} | {elapsed:>5.1f}s")
+            print(f"  Epoch {self.cum_epoch:>4} | eps {self.epsilon:.3f} | {avg_reward:>+11.2f} | {catches:>4}/{self.config.episodes_per_epoch:<3} | {avg_steps:>10.1f} | {avg_loss:>10.4f} | {elapsed:>5.1f}s")
 
-            # Save checkpoints
             if catch_rate > best_catch_rate:
                 best_catch_rate = catch_rate
-                self._save_model(f"best_{self.config.model_filename}")
-                print(f"       -> New best catch rate: {catch_rate:.1%}")
+                self._save_checkpoint(f"best_{self.config.model_filename}", best=True)
 
-            if epoch % self.config.save_every == 0:
-                self._save_model(self.config.model_filename)
+            if self.cum_epoch % self.config.save_every == 0:
+                self._save_checkpoint(self.config.model_filename)
+
+        total_time = time.time() - total_start
+        print(f"  Phase complete in {total_time:.1f}s | Best catch rate: {best_catch_rate:.1%}")
+        return best_catch_rate
+
+    def train(self):
+        """Main curriculum training loop."""
+        total_epochs = self.config.simple_epochs + self.config.mixed_epochs + self.config.ghost_epochs
+        print(f"\nCurriculum Training: {total_epochs} total epochs")
+        print(f"  Phase 1 (SimpleGhost): {self.config.simple_epochs} epochs")
+        print(f"  Phase 2 (Mixed 70/30): {self.config.mixed_epochs} epochs")
+        print(f"  Phase 3 (GhostAgent):  {self.config.ghost_epochs} epochs")
+        print(f"  Batch: {self.config.batch_size} | LR: {self.config.lr} | gamma: {self.config.gamma}")
+        print(f"  epsilon: {self.config.epsilon_start} -> {self.config.epsilon_end}")
+        print("-" * 60)
+
+        total_start = time.time()
+
+        # Phase 1: SimpleGhost only
+        self._run_phase(self.config.simple_epochs, "SimpleGhost BFS Flee", "simple")
+
+        # Phase 2: Mixed 70% SimpleGhost / 30% GhostAgent
+        self._run_phase(self.config.mixed_epochs, "Mixed 70/30", "mixed")
+
+        # Phase 3: GhostAgent only
+        self._run_phase(self.config.ghost_epochs, "GhostAgent Hide-Agent", "ghost")
 
         # Final save
-        self._save_model(self.config.model_filename)
-        total_time = time.time() - total_start
+        self._save_checkpoint(self.config.model_filename)
 
-        print("-" * 80)
-        print(f"Training complete in {total_time:.1f}s ({total_time/60:.1f} min)")
-        print(f"  Best catch rate: {best_catch_rate:.1%}")
+        total_time = time.time() - total_start
+        print("-" * 60)
+        print(f"Curriculum training complete in {total_time:.1f}s ({total_time/60:.1f} min)")
+        print(f"  Total epochs: {self.cum_epoch}")
         print(f"  Final epsilon: {self.epsilon:.4f}")
         print(f"  Model saved to: {self.config.save_dir / self.config.model_filename}")
 
-    def _save_model(self, filename):
-        """Save model state dict."""
+    def _save_checkpoint(self, filename, best=False):
+        """Save model checkpoint with metadata."""
         save_path = self.config.save_dir / filename
-        torch.save(self.online_net.state_dict(), save_path)
-
+        checkpoint = {
+            'model_state_dict': self.online_net.state_dict(),
+            'epoch': self.cum_epoch,
+            'epsilon': self.epsilon,
+            'phase': self.current_phase,
+            'training_epochs': self.cum_epoch,
+        }
+        torch.save(checkpoint, save_path)
+        if best:
+            print(f"       -> New best: {self.epoch_catches[-1]:.1%}")
 
 # ============================================================
 # Main
 # ============================================================
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train Pacman CNN-DQN agent (submission 1.2)")
+    parser = argparse.ArgumentParser(description="Train Pacman CNN-DQN v2 agent")
     parser.add_argument('--epochs', type=int, default=100, help='Number of training epochs (default: 100)')
     parser.add_argument('--episodes-per-epoch', type=int, default=20, help='Episodes per epoch (default: 20)')
     parser.add_argument('--batch-size', type=int, default=64, help='Batch size for DQN updates (default: 64)')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate (default: 0.001)')
     parser.add_argument('--obs-radius', type=int, default=0, help='Pacman observation radius for fog-of-war training (0 = full visibility)')
+    parser.add_argument('--stochastic', action='store_true', default=False, help='Use random (non-deterministic) start positions')
+    parser.add_argument('--curriculum', action='store_true', default=False, help='Run all 3 curriculum phases sequentially')
+    parser.add_argument('--phase', type=int, choices=[1, 2, 3], default=None, help='Run a single training phase')
+    parser.add_argument('--simple-epochs', type=int, default=200, help='Phase 1 epochs (default: 200)')
+    parser.add_argument('--mixed-epochs', type=int, default=100, help='Phase 2 epochs (default: 100)')
+    parser.add_argument('--ghost-epochs', type=int, default=50, help='Phase 3 epochs (default: 50)')
     return parser.parse_args()
-
 
 def main():
     args = parse_args()
     config = TrainingConfig(args)
     trainer = DQNTrainer(config)
-    trainer.train()
 
+    if args.phase is not None:
+        # Single phase mode
+        phase_configs = {
+            1: (config.simple_epochs, "SimpleGhost BFS Flee", "simple"),
+            2: (config.mixed_epochs, "Mixed 70/30", "mixed"),
+            3: (config.ghost_epochs, "GhostAgent Hide-Agent", "ghost"),
+        }
+        epochs, name, opponent = phase_configs[args.phase]
+        # Load existing checkpoint if available
+        model_path = config.save_dir / config.model_filename
+        if model_path.exists():
+            ckpt = torch.load(model_path, map_location=config.device, weights_only=True)
+            trainer.online_net.load_state_dict(ckpt['model_state_dict'])
+            trainer.target_net.load_state_dict(ckpt['model_state_dict'])
+            trainer.epsilon = ckpt.get('epsilon', config.epsilon_start)
+            trainer.cum_epoch = ckpt.get('epoch', 0)
+            trainer.current_phase = ckpt.get('phase', 0)
+            print(f"Resumed from checkpoint (epoch {trainer.cum_epoch}, epsilon {trainer.epsilon:.4f})")
+        trainer._run_phase(epochs, name, opponent)
+        trainer._save_checkpoint(config.model_filename)
+    else:
+        trainer.train()
 
 if __name__ == '__main__':
     main()
