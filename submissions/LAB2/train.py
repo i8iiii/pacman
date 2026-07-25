@@ -369,6 +369,62 @@ class TrainingEnv:
         return vec
 
 # ============================================================
+# A* Pathfinding Helpers (for guided exploration)
+# ============================================================
+
+def _train_manhattan(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+def _train_is_valid(pos, map_state):
+    r, c = pos
+    h, w = map_state.shape
+    return 0 <= r < h and 0 <= c < w and map_state[r, c] != 1
+
+def _train_astar_path(start, goal, map_state):
+    """A-star pathfinding from start to goal. Returns list of Move enums."""
+    if start == goal:
+        return []
+    from heapq import heappush, heappop
+    open_set = [(0, 0, start, [])]
+    g_score = {start: 0}
+    closed = set()
+    counter = 0
+    while open_set:
+        _, _, current, path = heappop(open_set)
+        if current in closed:
+            continue
+        closed.add(current)
+        if current == goal:
+            return path
+        for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+            dr, dc = move.value
+            nxt = (current[0] + dr, current[1] + dc)
+            if nxt in closed or not _train_is_valid(nxt, map_state):
+                continue
+            tg = g_score[current] + 1
+            if tg < g_score.get(nxt, float('inf')):
+                g_score[nxt] = tg
+                h = _train_manhattan(nxt, goal)
+                counter += 1
+                heappush(open_set, (tg + h, counter, nxt, path + [move]))
+    return []
+
+def _train_greedy_toward(my_pos, target, map_state):
+    """Greedy move toward target using Manhattan distance."""
+    best_move = Move.STAY
+    best_dist = _train_manhattan(my_pos, target)
+    for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+        dr, dc = move.value
+        nxt = (my_pos[0] + dr, my_pos[1] + dc)
+        if _train_is_valid(nxt, map_state):
+            d = _train_manhattan(nxt, target)
+            if d < best_dist:
+                best_dist = d
+                best_move = move
+    return best_move
+
+
+# ============================================================
 # DQN Trainer
 # ============================================================
 
@@ -421,9 +477,20 @@ class DQNTrainer:
         self.epoch_catches = []
         self.epoch_losses = []
 
-    def select_action(self, state, last_move_vec):
-        """Epsilon-greedy action selection."""
+    def select_action(self, state, last_move_vec, ghost_pos=None):
+        """Epsilon-greedy with guided exploration.
+
+        When exploring and ghost is visible: use A-star/greedy toward ghost
+        instead of purely random. This ensures the agent catches ghosts
+        during training, providing positive reinforcement.
+        """
         if random.random() < self.epsilon:
+            if ghost_pos is not None:
+                pac_pos = self._get_pacman_pos(state)
+                path = _train_astar_path(pac_pos, ghost_pos, state)
+                if path:
+                    return self.env.ALL_MOVES.index(path[0])
+                return self.env.ALL_MOVES.index(_train_greedy_toward(pac_pos, ghost_pos, state))
             return random.randint(0, self.config.n_actions - 1)
 
         with torch.no_grad():
@@ -431,6 +498,15 @@ class DQNTrainer:
             move_t = torch.FloatTensor(last_move_vec).unsqueeze(0).to(self.device)
             q_values = self.online_net(state_t, move_t)
             return torch.argmax(q_values, dim=1).item()
+
+    @staticmethod
+    def _get_pacman_pos(state):
+        """Extract Pacman position from state array."""
+        coords = __import__('numpy').argwhere(state == 2.0)
+        if len(coords) > 0:
+            return tuple(coords[0])
+        coords = __import__('numpy').argwhere((state != 1.0) & (state != -1.0))
+        return tuple(coords[0]) if len(coords) > 0 else (0, 0)
 
     def train_step(self):
         """Sample batch and perform one gradient update."""
@@ -480,7 +556,8 @@ class DQNTrainer:
         caught = False
 
         for step in range(self.config.max_steps_per_episode):
-            action = self.select_action(state, last_move_vec)
+            ghost_pos = self.env.env.ghost_pos
+            action = self.select_action(state, last_move_vec, ghost_pos)
             next_state, next_last_move, reward, done = self.env.step(action)
 
             self.replay_buffer.push(
