@@ -383,9 +383,10 @@ class DQNTrainer:
         print(f"  Device: {config.device}")
         print(f"  Obs radius: {config.obs_radius}")
 
-        # -- Build Networks (v2 with BatchNorm) --
-        self.online_net = PacmanCNNv2(config.input_shape, config.n_actions).to(self.device)
-        self.target_net = PacmanCNNv2(config.input_shape, config.n_actions).to(self.device)
+        # -- Build Networks (v1 for Phase 1, v2 for later phases) --
+        self._use_v2 = False
+        self.online_net = PacmanCNN(config.input_shape, config.n_actions).to(self.device)
+        self.target_net = PacmanCNN(config.input_shape, config.n_actions).to(self.device)
         self.target_net.load_state_dict(self.online_net.state_dict())
         self.target_net.eval()
 
@@ -513,6 +514,23 @@ class DQNTrainer:
         print(f"  Opponent: {opponent_mode}")
         print(f"  Epochs: {epochs} | Current epsilon: {self.epsilon:.4f}")
         print(f"{'='*60}")
+
+        # Upgrade to v2 model at Phase 2 (when facing GhostAgent)
+        if self.current_phase >= 2 and not self._use_v2:
+            print("  Upgrading model to PacmanCNNv2 (BatchNorm + 3-layer)...")
+            old_state = self.online_net.state_dict()
+            self.online_net = PacmanCNNv2(self.config.input_shape, self.config.n_actions).to(self.device)
+            self.target_net = PacmanCNNv2(self.config.input_shape, self.config.n_actions).to(self.device)
+            # Copy compatible weights (conv1, fc1, fc2 exist in both)
+            self.online_net.conv1.load_state_dict(old_state['conv1'])
+            self.online_net.fc1.load_state_dict(old_state['fc1'])
+            self.online_net.fc2.load_state_dict(old_state['fc2'])
+            self.target_net.load_state_dict(self.online_net.state_dict())
+            self.target_net.eval()
+            self._use_v2 = True
+            # Re-create optimizer for new model
+            self.optimizer = optim.Adam(self.online_net.parameters(), lr=self.config.lr)
+            print(f"  Model upgraded. Params: {sum(p.numel() for p in self.online_net.parameters()):,}")
 
         self.env._opponent_mode = opponent_mode
         self.env._init_ghost(pacman_speed=2)
@@ -643,8 +661,15 @@ def main():
         model_path = config.save_dir / config.model_filename
         if model_path.exists():
             ckpt = torch.load(model_path, map_location=config.device, weights_only=True)
-            trainer.online_net.load_state_dict(ckpt['model_state_dict'])
-            trainer.target_net.load_state_dict(ckpt['model_state_dict'])
+            sd = ckpt['model_state_dict']
+            is_v2 = any('conv3' in k for k in sd.keys())
+            if is_v2 and args.phase is not None and args.phase >= 2:
+                # Resume with v2 model
+                trainer.online_net = PacmanCNNv2(config.input_shape, config.n_actions).to(config.device)
+                trainer.target_net = PacmanCNNv2(config.input_shape, config.n_actions).to(config.device)
+                trainer._use_v2 = True
+            trainer.online_net.load_state_dict(sd)
+            trainer.target_net.load_state_dict(sd)
             trainer.epsilon = ckpt.get('epsilon', config.epsilon_start)
             trainer.cum_epoch = ckpt.get('epoch', 0)
             trainer.current_phase = ckpt.get('phase', 0)
