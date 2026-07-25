@@ -63,6 +63,19 @@ def _pacman_manhattan(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
+# Known hiding pockets in the classic 21x21 map (upper half)
+UPPER_POCKETS = {
+    # Side corners (top-left)
+    (1, 1), (1, 2), (1, 3),
+    # Side corners (top-right)
+    (1, 17), (1, 18), (1, 19),
+    # Upper-middle alcoves
+    (5, 5), (5, 6),
+    (5, 14), (5, 15),
+    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
+}
+
+
 def _pacman_astar(start, goal, map_state):
     """A* pathfinding from start to goal. Returns list of Move enums, or empty list if no path."""
     if start == goal:
@@ -99,17 +112,17 @@ def _pacman_astar(start, goal, map_state):
 
 
 def _pacman_find_frontier(my_pos, internal_map):
-    """Find the best frontier cell (boundary between known and unknown) for exploration."""
+    """Find best frontier cell with upper-half and pocket priority."""
     if internal_map is None:
         return None
     h, w = internal_map.shape
+    mid_row = h // 2
     best = None
-    best_score = -1
+    best_score = -1.0
     for r in range(h):
         for c in range(w):
             if internal_map[r, c] != 0:
                 continue
-            # Check if this cell borders an unseen cell
             has_unknown = False
             for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
                 dr, dc = move.value
@@ -117,14 +130,21 @@ def _pacman_find_frontier(my_pos, internal_map):
                 if 0 <= nr < h and 0 <= nc < w and internal_map[nr, nc] == -1:
                     has_unknown = True
                     break
-            if has_unknown:
-                dist = _pacman_manhattan(my_pos, (r, c))
-                if dist == 0:
-                    continue
-                score = 1.0 / dist
-                if score > best_score:
-                    best_score = score
-                    best = (r, c)
+            if not has_unknown:
+                continue
+            dist = _pacman_manhattan(my_pos, (r, c))
+            if dist == 0:
+                continue
+            score = 1.0 / dist
+            # Upper-half bonus: 2x score (ghost spawns there)
+            if r < mid_row:
+                score *= 2.0
+            # Pocket bonus: 3x score for known hiding spots
+            if (r, c) in UPPER_POCKETS:
+                score *= 3.0
+            if score > best_score:
+                best_score = score
+                best = (r, c)
     return best
 
 
@@ -153,7 +173,6 @@ class PacmanAgent(BasePacmanAgent):
     4. If enemy hidden too long → A* to frontier (explore)
     """
 
-    CONFIDENCE_THRESHOLD = 0.5
     ALL_MOVES = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
 
     def __init__(self, **kwargs):
@@ -167,6 +186,10 @@ class PacmanAgent(BasePacmanAgent):
         self.last_known_enemy_pos = None
         self.steps_since_seen = 0
         self.last_move = None
+
+        # ── Confidence threshold tracking (may be overridden by checkpoint) ──
+        self._total_epochs = max(1, int(kwargs.get("total_epochs", 200)))
+        self._current_epoch = max(0, int(kwargs.get("current_epoch", 0)))
 
         # ── Load DQN model ──
         self.device = torch.device("cpu") if TORCH_AVAILABLE else None
@@ -267,7 +290,7 @@ class PacmanAgent(BasePacmanAgent):
 
             # Confidence check
             confidence = q_values.max().item() - q_values.mean().item()
-            if confidence < self.CONFIDENCE_THRESHOLD:
+            if confidence < self._get_confidence_threshold():
                 return None
 
             # Get best valid move
@@ -282,6 +305,14 @@ class PacmanAgent(BasePacmanAgent):
             pass
 
         return None
+
+    def _get_confidence_threshold(self):
+        """Dynamic threshold that decays as DQN matures through training."""
+        if self._total_epochs <= 0:
+            return 0.5
+        t = self._current_epoch / float(self._total_epochs)
+        final = 0.8 * (0.98 ** (t * self._total_epochs)) if t < 1.0 else 0.2
+        return max(0.2, min(0.8, final))
 
     # ── Map Memory ──
 
