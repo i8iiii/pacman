@@ -521,15 +521,23 @@ class DQNTrainer:
             old_state = self.online_net.state_dict()
             self.online_net = PacmanCNNv2(self.config.input_shape, self.config.n_actions).to(self.device)
             self.target_net = PacmanCNNv2(self.config.input_shape, self.config.n_actions).to(self.device)
-            # Copy compatible weights (conv1, fc1, fc2 exist in both)
-            self.online_net.conv1.load_state_dict(old_state['conv1'])
-            self.online_net.fc1.load_state_dict(old_state['fc1'])
-            self.online_net.fc2.load_state_dict(old_state['fc2'])
+            # Copy compatible weights from v1 to v2
+            # v1 has: conv1.*, conv2.*, fc1.*, fc2.*
+            # v2 has: conv1.*, bn1.*, conv2.*, bn2.*, conv3.*, bn3.*, fc1.*, fc2.*
+            # We can copy: conv1.*, conv2.* (only weight shape matches), fc1.*, fc2.*
+            v2_sd = self.online_net.state_dict()
+            for key in ['conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias',
+                        'fc1.weight', 'fc1.bias', 'fc2.weight', 'fc2.bias']:
+                if key in old_state and key in v2_sd:
+                    v2_sd[key] = old_state[key]
+            self.online_net.load_state_dict(v2_sd)
             self.target_net.load_state_dict(self.online_net.state_dict())
             self.target_net.eval()
             self._use_v2 = True
-            # Re-create optimizer for new model
-            self.optimizer = optim.Adam(self.online_net.parameters(), lr=self.config.lr)
+            # Re-create optimizer with reduced learning rate for v2 stability
+            v2_lr = self.config.lr * 0.5
+            print(f"  Reducing LR: {self.config.lr} -> {v2_lr}")
+            self.optimizer = optim.Adam(self.online_net.parameters(), lr=v2_lr)
             print(f"  Model upgraded. Params: {sum(p.numel() for p in self.online_net.parameters()):,}")
 
         self.env._opponent_mode = opponent_mode
