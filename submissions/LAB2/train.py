@@ -432,6 +432,9 @@ _TRAIN_UPPER_POCKETS = {
     (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
 }
 
+# Probability of choosing an upper-half/pocket target vs direct ghost chase
+_UPPER_HALF_BIAS = 0.4  # 40% chance to bias toward upper half when ghost is visible
+
 def _train_find_search_target(my_pos, map_state):
     """Find the best cell in the upper half to search when ghost is hidden."""
     h, w = map_state.shape
@@ -441,7 +444,6 @@ def _train_find_search_target(my_pos, map_state):
 
     for r in range(h):
         for c in range(w):
-            # Only consider walkable upper-half cells
             if not _train_is_valid((r, c), map_state):
                 continue
             if r >= mid_row:
@@ -449,15 +451,57 @@ def _train_find_search_target(my_pos, map_state):
             dist = _train_manhattan(my_pos, (r, c))
             if dist == 0:
                 continue
-            # Base score: prefer closer cells
             score = 1.0 / dist
-            # Pocket bonus: 5x for known hiding spots
             if (r, c) in _TRAIN_UPPER_POCKETS:
                 score *= 5.0
             if score > best_score:
                 best_score = score
                 best = (r, c)
     return best
+
+def _train_find_intercept_target(my_pos, ghost_pos, map_state):
+    """Find a target near the ghost but biased toward upper half and corners.
+    
+    Returns a position between Pacman and ghost that cuts off escape routes,
+    preferring upper-half cells and pocket corners.
+    """
+    h, w = map_state.shape
+    mid_row = h // 2
+    candidates = []
+    
+    # Get all valid neighbors of the ghost position
+    for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+        dr, dc = move.value
+        nr, nc = ghost_pos[0] + dr, ghost_pos[1] + dc
+        if _train_is_valid((nr, nc), map_state):
+            candidates.append((nr, nc))
+    
+    # Also add the ghost position itself
+    if _train_is_valid(ghost_pos, map_state):
+        candidates.append(ghost_pos)
+    
+    if not candidates:
+        return ghost_pos
+    
+    # Score each candidate: prefer upper-half, pockets, and closer to pacman
+    best = None
+    best_score = -1.0
+    for pos in candidates:
+        dist = _train_manhattan(my_pos, pos)
+        if dist == 0:
+            continue
+        score = 1.0 / dist
+        # Upper-half bonus
+        if pos[0] < mid_row:
+            score *= 2.0
+        # Pocket bonus
+        if pos in _TRAIN_UPPER_POCKETS:
+            score *= 3.0
+        if score > best_score:
+            best_score = score
+            best = pos
+    
+    return best if best is not None else ghost_pos
 
 
 # ============================================================
@@ -522,12 +566,17 @@ class DQNTrainer:
         """
         if random.random() < self.epsilon:
             if ghost_pos is not None:
-                # Ghost visible: A* chase toward ghost
+                # Ghost visible: bias toward upper-half corners to cut off escape
                 pac_pos = self._get_pacman_pos(state)
-                path = _train_astar_path(pac_pos, ghost_pos, state)
+                if random.random() < _UPPER_HALF_BIAS:
+                    # Use intercept target: near ghost, biased toward upper half / pockets
+                    target = _train_find_intercept_target(pac_pos, ghost_pos, state)
+                else:
+                    target = ghost_pos
+                path = _train_astar_path(pac_pos, target, state)
                 if path:
                     return self.env.ALL_MOVES.index(path[0])
-                return self.env.ALL_MOVES.index(_train_greedy_toward(pac_pos, ghost_pos, state))
+                return self.env.ALL_MOVES.index(_train_greedy_toward(pac_pos, target, state))
             else:
                 # Ghost hidden: systematically search upper half, prioritize corners
                 pac_pos = self._get_pacman_pos(state)
