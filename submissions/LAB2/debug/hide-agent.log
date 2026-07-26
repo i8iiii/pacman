@@ -4,285 +4,285 @@
 
 {"event": "state_changed", "previous_state": null, "reason": "match_start", "state": "SCOUT", "step_number": 1}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 1}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 1}
 
 {"approach_road_ids": [2, 3], "event": "main_road_scan", "excluded_cell_count": 124, "excluded_hideout_count": 124, "road_count": 4, "road_visibility": [{"is_approach": false, "orientation": "horizontal", "road_id": 0, "visible_cells": [[1, 1], [1, 5], [1, 9], [1, 11], [1, 15], [1, 19], [2, 1], [2, 5], [2, 9], [2, 11], [2, 15], [2, 19], [3, 1], [3, 5], [3, 9], [3, 11], [3, 15], [3, 19], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7], [4, 8], [4, 9], [4, 10], [4, 11], [4, 12], [4, 13], [4, 14], [4, 15], [4, 16], [4, 17], [4, 18], [4, 19], [5, 1], [5, 5], [5, 7], [5, 13], [5, 15], [5, 19], [6, 1], [6, 5], [6, 7], [6, 13], [6, 15], [6, 19], [7, 5], [7, 15], [8, 5], [8, 15], [9, 5], [9, 15]]}, {"is_approach": false, "orientation": "horizontal", "road_id": 1, "visible_cells": [[17, 1], [17, 9], [17, 11], [17, 19], [18, 1], [18, 9], [18, 11], [18, 19], [19, 1], [19, 2], [19, 3], [19, 4], [19, 5], [19, 6], [19, 7], [19, 8], [19, 9], [19, 10], [19, 11], [19, 12], [19, 13], [19, 14], [19, 15], [19, 16], [19, 17], [19, 18], [19, 19]]}, {"is_approach": true, "orientation": "vertical", "road_id": 2, "visible_cells": [[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8], [1, 9], [2, 5], [3, 5], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7], [4, 8], [4, 9], [4, 10], [5, 5], [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [7, 5], [8, 5], [9, 5], [10, 1], [10, 2], [10, 3], [10, 4], [10, 5], [10, 6], [10, 7], [11, 5], [12, 5], [13, 1], [13, 2], [13, 3], [13, 4], [13, 5], [13, 6], [13, 7], [13, 8], [13, 9], [14, 5], [15, 5], [15, 6], [15, 7], [15, 8], [15, 9], [15, 10], [16, 5], [17, 1], [17, 2], [17, 3], [17, 4], [17, 5], [17, 6], [17, 7], [17, 8], [17, 9]]}, {"is_approach": true, "orientation": "vertical", "road_id": 3, "visible_cells": [[1, 11], [1, 12], [1, 13], [1, 14], [1, 15], [1, 16], [1, 17], [1, 18], [1, 19], [2, 15], [3, 15], [4, 10], [4, 11], [4, 12], [4, 13], [4, 14], [4, 15], [4, 16], [4, 17], [4, 18], [4, 19], [5, 15], [6, 15], [6, 16], [6, 17], [6, 18], [6, 19], [7, 15], [8, 15], [9, 15], [10, 13], [10, 14], [10, 15], [10, 16], [10, 17], [10, 18], [10, 19], [11, 15], [12, 15], [13, 11], [13, 12], [13, 13], [13, 14], [13, 15], [13, 16], [13, 17], [13, 18], [13, 19], [14, 15], [15, 10], [15, 11], [15, 12], [15, 13], [15, 14], [15, 15], [16, 15], [17, 15], [17, 16], [17, 17], [17, 18], [17, 19]]}], "roads": [{"cells": [[4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7], [4, 8], [4, 9], [4, 10], [4, 11], [4, 12], [4, 13], [4, 14], [4, 15], [4, 16], [4, 17], [4, 18], [4, 19]], "end": [4, 19], "length": 19, "orientation": "horizontal", "road_id": 0, "start": [4, 1]}, {"cells": [[19, 1], [19, 2], [19, 3], [19, 4], [19, 5], [19, 6], [19, 7], [19, 8], [19, 9], [19, 10], [19, 11], [19, 12], [19, 13], [19, 14], [19, 15], [19, 16], [19, 17], [19, 18], [19, 19]], "end": [19, 19], "length": 19, "orientation": "horizontal", "road_id": 1, "start": [19, 1]}, {"cells": [[1, 5], [2, 5], [3, 5], [4, 5], [5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5], [15, 5], [16, 5], [17, 5]], "end": [17, 5], "length": 17, "orientation": "vertical", "road_id": 2, "start": [1, 5]}, {"cells": [[1, 15], [2, 15], [3, 15], [4, 15], [5, 15], [6, 15], [7, 15], [8, 15], [9, 15], [10, 15], [11, 15], [12, 15], [13, 15], [14, 15], [15, 15], [16, 15], [17, 15]], "end": [17, 15], "length": 17, "orientation": "vertical", "road_id": 3, "start": [1, 15]}], "shape": [21, 21], "step_number": 1, "thresholds": {"horizontal": 14, "vertical": 14}}
 
 {"candidates": 201, "classes": {"terminal": 201}, "entrance_hidden": 188, "event": "hideout_scan", "footprint_max": 18, "footprint_min": 3, "step_number": 1}
 
-{"admitted_count": 4, "event": "hideout_selected", "rank": [1, 8, -6, 1, 6, 1, -3, -5, -1], "rejections": {"compromised": 0, "lower_class": 5, "outside_route_window": 68, "unreachable": 0}, "route_distance": 3, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 8, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [5, 1], "spawn_discovery_distance": 6, "visibility_footprint": 6}, "step_number": 1}
+{"admitted_count": 12, "event": "hideout_selected", "rank": [1, 4, -3, 1, 6, 1, -4, -5, -7], "rejections": {"compromised": 0, "lower_class": 5, "outside_route_window": 60, "unreachable": 0}, "route_distance": 4, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 4, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [5, 7], "spawn_discovery_distance": 6, "visibility_footprint": 3}, "step_number": 1}
 
-{"event": "scout_target", "route_length": 3, "step_number": 1, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_target", "route_length": 4, "step_number": 1, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "route_planned", "moves": ["LEFT", "LEFT", "UP"], "path": [[6, 3], [6, 2], [6, 1], [5, 1]], "reason": "target_selected", "step_number": 1, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "route_planned", "moves": ["UP", "LEFT", "LEFT", "UP"], "path": [[7, 9], [6, 9], [6, 8], [6, 7], [5, 7]], "reason": "target_selected", "step_number": 1, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "scout_move", "move": "LEFT", "remaining_steps": 3, "step_number": 1, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_move", "move": "UP", "remaining_steps": 4, "step_number": 1, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 48.322, "state": "SCOUT", "step_number": 1}
+{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 37.319, "state": "SCOUT", "step_number": 1}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 2}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "DOWN", "LEFT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "DOWN", "LEFT"], "step_number": 2}
 
-{"event": "scout_target", "route_length": 2, "step_number": 2, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_target", "route_length": 3, "step_number": 2, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "scout_move", "move": "LEFT", "remaining_steps": 2, "step_number": 2, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_move", "move": "LEFT", "remaining_steps": 3, "step_number": 2, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.496, "state": "SCOUT", "step_number": 2}
+{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.526, "state": "SCOUT", "step_number": 2}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 3}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 3}
 
-{"event": "scout_target", "route_length": 1, "step_number": 3, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_target", "route_length": 2, "step_number": 3, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "scout_move", "move": "UP", "remaining_steps": 1, "step_number": 3, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "scout_move", "move": "LEFT", "remaining_steps": 2, "step_number": 3, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 2.024, "state": "SCOUT", "step_number": 3}
+{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.432, "state": "SCOUT", "step_number": 3}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 4}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 4}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 4}
+{"event": "scout_target", "route_length": 1, "step_number": 4, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "hideout_arrived", "hideout": [5, 1], "step_number": 4}
+{"event": "scout_move", "move": "UP", "remaining_steps": 1, "step_number": 4, "target": [5, 7], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.451, "state": "HIDE", "step_number": 4}
+{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 2.68, "state": "SCOUT", "step_number": 4}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 5}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.524, "state": "HIDE", "step_number": 5}
+{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 5}
+
+{"event": "hideout_arrived", "hideout": [5, 7], "step_number": 5}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.361, "state": "HIDE", "step_number": 5}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 6}
 
-{"admitted_count": 146, "event": "hideout_selected", "rank": [-2, 1, 7, -5, 1, 4, 1, -6, -2], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 7, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [6, 2], "spawn_discovery_distance": 4, "visibility_footprint": 5}, "step_number": 6}
+{"admitted_count": 146, "event": "hideout_selected", "rank": [-2, 1, 3, -3, 1, 5, 1, -6, -8], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 3, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [6, 8], "spawn_discovery_distance": 5, "visibility_footprint": 3}, "step_number": 6}
 
 {"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 6}
 
-{"event": "scout_target", "route_length": 2, "step_number": 6, "target": [6, 2], "target_kind": "strategic_hideout"}
+{"event": "scout_target", "route_length": 2, "step_number": 6, "target": [6, 8], "target_kind": "strategic_hideout"}
 
-{"event": "route_planned", "moves": ["DOWN", "RIGHT"], "path": [[5, 1], [6, 1], [6, 2]], "reason": "target_selected", "step_number": 6, "target": [6, 2], "target_kind": "strategic_hideout"}
+{"event": "route_planned", "moves": ["DOWN", "RIGHT"], "path": [[5, 7], [6, 7], [6, 8]], "reason": "target_selected", "step_number": 6, "target": [6, 8], "target_kind": "strategic_hideout"}
 
-{"event": "scout_move", "move": "DOWN", "remaining_steps": 2, "step_number": 6, "target": [6, 2], "target_kind": "strategic_hideout"}
+{"event": "scout_move", "move": "DOWN", "remaining_steps": 2, "step_number": 6, "target": [6, 8], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "DOWN", "reason": "hideout_route", "runtime_ms": 1.607, "state": "SCOUT", "step_number": 6}
+{"event": "decision", "move": "DOWN", "reason": "hideout_route", "runtime_ms": 1.517, "state": "SCOUT", "step_number": 6}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 7}
 
-{"event": "scout_target", "route_length": 1, "step_number": 7, "target": [6, 2], "target_kind": "strategic_hideout"}
+{"event": "scout_target", "route_length": 1, "step_number": 7, "target": [6, 8], "target_kind": "strategic_hideout"}
 
-{"event": "scout_move", "move": "RIGHT", "remaining_steps": 1, "step_number": 7, "target": [6, 2], "target_kind": "strategic_hideout"}
+{"event": "scout_move", "move": "RIGHT", "remaining_steps": 1, "step_number": 7, "target": [6, 8], "target_kind": "strategic_hideout"}
 
-{"event": "decision", "move": "RIGHT", "reason": "hideout_route", "runtime_ms": 1.473, "state": "SCOUT", "step_number": 7}
+{"event": "decision", "move": "RIGHT", "reason": "hideout_route", "runtime_ms": 1.336, "state": "SCOUT", "step_number": 7}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 8}
 
 {"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 8}
 
-{"event": "hideout_arrived", "hideout": [6, 2], "step_number": 8}
+{"event": "hideout_arrived", "hideout": [6, 8], "step_number": 8}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.432, "state": "HIDE", "step_number": 8}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.454, "state": "HIDE", "step_number": 8}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 9}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.75, "state": "HIDE", "step_number": 9}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.391, "state": "HIDE", "step_number": 9}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 10}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.322, "state": "HIDE", "step_number": 10}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.275, "state": "HIDE", "step_number": 10}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 11}
 
-{"admitted_count": 77, "event": "hideout_selected", "rank": [-2, 1, 8, -6, 1, 6, 1, -5, -1], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 8, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [5, 1], "spawn_discovery_distance": 6, "visibility_footprint": 6}, "step_number": 11}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.373, "state": "HIDE", "step_number": 11}
 
-{"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 11}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 12}
 
-{"event": "scout_target", "route_length": 2, "step_number": 11, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.279, "state": "HIDE", "step_number": 12}
 
-{"event": "route_planned", "moves": ["LEFT", "UP"], "path": [[6, 2], [6, 1], [5, 1]], "reason": "target_selected", "step_number": 11, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 13}
 
-{"event": "scout_move", "move": "LEFT", "remaining_steps": 2, "step_number": 11, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.318, "state": "HIDE", "step_number": 13}
 
-{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.61, "state": "SCOUT", "step_number": 11}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 14}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 12}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.305, "state": "HIDE", "step_number": 14}
 
-{"event": "scout_target", "route_length": 1, "step_number": 12, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 15}
 
-{"event": "scout_move", "move": "UP", "remaining_steps": 1, "step_number": 12, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.349, "state": "HIDE", "step_number": 15}
 
-{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 1.479, "state": "SCOUT", "step_number": 12}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 16}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 13}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.324, "state": "HIDE", "step_number": 16}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 13}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 17}
 
-{"event": "hideout_arrived", "hideout": [5, 1], "step_number": 13}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.409, "state": "HIDE", "step_number": 13}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 14}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.419, "state": "HIDE", "step_number": 14}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 15}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.355, "state": "HIDE", "step_number": 15}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 16}
-
-{"admitted_count": 146, "event": "hideout_selected", "rank": [-2, 1, 7, -5, 1, 4, 1, -6, -2], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 7, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [6, 2], "spawn_discovery_distance": 4, "visibility_footprint": 5}, "step_number": 16}
-
-{"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 16}
-
-{"event": "scout_target", "route_length": 2, "step_number": 16, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "route_planned", "moves": ["DOWN", "RIGHT"], "path": [[5, 1], [6, 1], [6, 2]], "reason": "target_selected", "step_number": 16, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "scout_move", "move": "DOWN", "remaining_steps": 2, "step_number": 16, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "decision", "move": "DOWN", "reason": "hideout_route", "runtime_ms": 1.565, "state": "SCOUT", "step_number": 16}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 17}
-
-{"event": "scout_target", "route_length": 1, "step_number": 17, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "scout_move", "move": "RIGHT", "remaining_steps": 1, "step_number": 17, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "decision", "move": "RIGHT", "reason": "hideout_route", "runtime_ms": 1.457, "state": "SCOUT", "step_number": 17}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.329, "state": "HIDE", "step_number": 17}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 18}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 18}
-
-{"event": "hideout_arrived", "hideout": [6, 2], "step_number": 18}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.408, "state": "HIDE", "step_number": 18}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.379, "state": "HIDE", "step_number": 18}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 19}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.343, "state": "HIDE", "step_number": 19}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.399, "state": "HIDE", "step_number": 19}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 20}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.416, "state": "HIDE", "step_number": 20}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.302, "state": "HIDE", "step_number": 20}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 21}
 
-{"admitted_count": 77, "event": "hideout_selected", "rank": [-2, 1, 8, -6, 1, 6, 1, -5, -1], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 8, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [5, 1], "spawn_discovery_distance": 6, "visibility_footprint": 6}, "step_number": 21}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.339, "state": "HIDE", "step_number": 21}
 
-{"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 21}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 22}
 
-{"event": "scout_target", "route_length": 2, "step_number": 21, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.341, "state": "HIDE", "step_number": 22}
 
-{"event": "route_planned", "moves": ["LEFT", "UP"], "path": [[6, 2], [6, 1], [5, 1]], "reason": "target_selected", "step_number": 21, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 23}
 
-{"event": "scout_move", "move": "LEFT", "remaining_steps": 2, "step_number": 21, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.381, "state": "HIDE", "step_number": 23}
 
-{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.692, "state": "SCOUT", "step_number": 21}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 24}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 22}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.333, "state": "HIDE", "step_number": 24}
 
-{"event": "scout_target", "route_length": 1, "step_number": 22, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 25}
 
-{"event": "scout_move", "move": "UP", "remaining_steps": 1, "step_number": 22, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.305, "state": "HIDE", "step_number": 25}
 
-{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 1.517, "state": "SCOUT", "step_number": 22}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 26}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 23}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.297, "state": "HIDE", "step_number": 26}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 23}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 27}
 
-{"event": "hideout_arrived", "hideout": [5, 1], "step_number": 23}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.466, "state": "HIDE", "step_number": 23}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 24}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.441, "state": "HIDE", "step_number": 24}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 25}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.377, "state": "HIDE", "step_number": 25}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 26}
-
-{"admitted_count": 146, "event": "hideout_selected", "rank": [-2, 1, 7, -5, 1, 4, 1, -6, -2], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 7, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [6, 2], "spawn_discovery_distance": 4, "visibility_footprint": 5}, "step_number": 26}
-
-{"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 26}
-
-{"event": "scout_target", "route_length": 2, "step_number": 26, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "route_planned", "moves": ["DOWN", "RIGHT"], "path": [[5, 1], [6, 1], [6, 2]], "reason": "target_selected", "step_number": 26, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "scout_move", "move": "DOWN", "remaining_steps": 2, "step_number": 26, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "decision", "move": "DOWN", "reason": "hideout_route", "runtime_ms": 1.637, "state": "SCOUT", "step_number": 26}
-
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 27}
-
-{"event": "scout_target", "route_length": 1, "step_number": 27, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "scout_move", "move": "RIGHT", "remaining_steps": 1, "step_number": 27, "target": [6, 2], "target_kind": "strategic_hideout"}
-
-{"event": "decision", "move": "RIGHT", "reason": "hideout_route", "runtime_ms": 1.532, "state": "SCOUT", "step_number": 27}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.281, "state": "HIDE", "step_number": 27}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 28}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 28}
-
-{"event": "hideout_arrived", "hideout": [6, 2], "step_number": 28}
-
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.419, "state": "HIDE", "step_number": 28}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.315, "state": "HIDE", "step_number": 28}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 29}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.406, "state": "HIDE", "step_number": 29}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.305, "state": "HIDE", "step_number": 29}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 30}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.374, "state": "HIDE", "step_number": 30}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.284, "state": "HIDE", "step_number": 30}
 
 {"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 31}
 
-{"admitted_count": 77, "event": "hideout_selected", "rank": [-2, 1, 8, -6, 1, 6, 1, -5, -1], "rejections": {"compromised": 0, "unreachable": 0}, "route_distance": 2, "selected": {"entrance": [10, 10], "entrance_hidden": true, "gate_depth": 1, "inspection_depth": 8, "kind": "terminal", "must_backtrack": true, "opposite_vertical_band": true, "position": [5, 1], "spawn_discovery_distance": 6, "visibility_footprint": 6}, "step_number": 31}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.368, "state": "HIDE", "step_number": 31}
 
-{"event": "state_changed", "previous_state": "HIDE", "reason": "routing_to_hideout", "state": "SCOUT", "step_number": 31}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 32}
 
-{"event": "scout_target", "route_length": 2, "step_number": 31, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.371, "state": "HIDE", "step_number": 32}
 
-{"event": "route_planned", "moves": ["LEFT", "UP"], "path": [[6, 2], [6, 1], [5, 1]], "reason": "target_selected", "step_number": 31, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 33}
 
-{"event": "scout_move", "move": "LEFT", "remaining_steps": 2, "step_number": 31, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.292, "state": "HIDE", "step_number": 33}
 
-{"event": "decision", "move": "LEFT", "reason": "hideout_route", "runtime_ms": 1.647, "state": "SCOUT", "step_number": 31}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 34}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "RIGHT"], "step_number": 32}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.309, "state": "HIDE", "step_number": 34}
 
-{"event": "scout_target", "route_length": 1, "step_number": 32, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 35}
 
-{"event": "scout_move", "move": "UP", "remaining_steps": 1, "step_number": 32, "target": [5, 1], "target_kind": "strategic_hideout"}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.313, "state": "HIDE", "step_number": 35}
 
-{"event": "decision", "move": "UP", "reason": "hideout_route", "runtime_ms": 1.516, "state": "SCOUT", "step_number": 32}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 36}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 33}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.377, "state": "HIDE", "step_number": 36}
 
-{"event": "state_changed", "previous_state": "SCOUT", "reason": "hideout_reached", "state": "HIDE", "step_number": 33}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 37}
 
-{"event": "hideout_arrived", "hideout": [5, 1], "step_number": 33}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.341, "state": "HIDE", "step_number": 37}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.534, "state": "HIDE", "step_number": 33}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 38}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 34}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.288, "state": "HIDE", "step_number": 38}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.431, "state": "HIDE", "step_number": 34}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 39}
 
-{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 35}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.344, "state": "HIDE", "step_number": 39}
 
-{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.567, "state": "HIDE", "step_number": 35}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 40}
 
-{"capturing_pacman_endpoints": [[4, 1], [5, 1]], "confirmed_ghost_moves": ["STAY", "UP", "DOWN"], "current_capture": false, "enemy_line_of_sight": true, "enemy_visible": true, "event": "geometry_summary", "pacman_endpoints": [[1, 1], [2, 1], [3, 1], [4, 1], [5, 1]], "possible_ghost_moves": ["STAY", "UP", "DOWN"], "step_number": 36}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.317, "state": "HIDE", "step_number": 40}
 
-{"event": "hideout_compromised", "ghost_position": [5, 1], "hideout": [5, 1], "reason": "visible_at_hideout", "step_number": 36}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 41}
 
-{"approach_direction": "UP", "event": "visible_while_mobile", "pacman_position": [3, 1], "position": [5, 1], "step_number": 36}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.389, "state": "HIDE", "step_number": 41}
 
-{"endpoint": [6, 1], "equivalent_moves": ["DOWN"], "event": "escape_target_chosen", "guaranteed_safe": false, "immediate_rank": [0, 1, 0, 1], "mode": "forced", "move": "DOWN", "rank": [0, 1, 0, 1, 1, 1, 1, -6, 31], "step_number": 36, "target": {"distance": 6, "kind": "safe_campsite", "position": [4, 5]}, "target_reason": "safe_campsite"}
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 42}
 
-{"event": "decision", "move": "DOWN", "reason": "visible_mobile_escape_forced", "runtime_ms": 2.879, "state": "HIDE", "step_number": 36}
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.374, "state": "HIDE", "step_number": 42}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 43}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.346, "state": "HIDE", "step_number": 43}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 44}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.324, "state": "HIDE", "step_number": 44}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 45}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.314, "state": "HIDE", "step_number": 45}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 46}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.341, "state": "HIDE", "step_number": 46}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 47}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.273, "state": "HIDE", "step_number": 47}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 48}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.294, "state": "HIDE", "step_number": 48}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 49}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.28, "state": "HIDE", "step_number": 49}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 50}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.294, "state": "HIDE", "step_number": 50}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 51}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.349, "state": "HIDE", "step_number": 51}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 52}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.293, "state": "HIDE", "step_number": 52}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 53}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.359, "state": "HIDE", "step_number": 53}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 54}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.366, "state": "HIDE", "step_number": 54}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 55}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.3, "state": "HIDE", "step_number": 55}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 56}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.413, "state": "HIDE", "step_number": 56}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 57}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.428, "state": "HIDE", "step_number": 57}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 58}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.441, "state": "HIDE", "step_number": 58}
+
+{"capturing_pacman_endpoints": [], "confirmed_ghost_moves": ["STAY", "LEFT", "RIGHT"], "current_capture": null, "enemy_line_of_sight": null, "enemy_visible": false, "event": "geometry_summary", "pacman_endpoints": [], "possible_ghost_moves": ["STAY", "LEFT", "RIGHT"], "step_number": 59}
+
+{"event": "decision", "move": "STAY", "reason": "hideout_hold", "runtime_ms": 1.288, "state": "HIDE", "step_number": 59}
 
