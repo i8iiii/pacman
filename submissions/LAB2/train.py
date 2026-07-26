@@ -92,7 +92,7 @@ class TrainingConfig:
         # -- Saving --
         self.save_dir = Path(__file__).parent
         self.save_every = 10
-        self.model_filename = "pacman_dqn_v2.pt"
+        self.model_filename = "best_pacman_dqn_v2.pt"
 
 # ============================================================
 # Replay Buffer
@@ -423,6 +423,42 @@ def _train_greedy_toward(my_pos, target, map_state):
                 best_move = move
     return best_move
 
+# Known hiding pockets in the classic 21x21 map (upper half)
+_TRAIN_UPPER_POCKETS = {
+    (1, 1), (1, 2), (1, 3),
+    (1, 17), (1, 18), (1, 19),
+    (5, 5), (5, 6),
+    (5, 14), (5, 15),
+    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
+}
+
+def _train_find_search_target(my_pos, map_state):
+    """Find the best cell in the upper half to search when ghost is hidden."""
+    h, w = map_state.shape
+    mid_row = h // 2
+    best = None
+    best_score = -1.0
+
+    for r in range(h):
+        for c in range(w):
+            # Only consider walkable upper-half cells
+            if not _train_is_valid((r, c), map_state):
+                continue
+            if r >= mid_row:
+                continue
+            dist = _train_manhattan(my_pos, (r, c))
+            if dist == 0:
+                continue
+            # Base score: prefer closer cells
+            score = 1.0 / dist
+            # Pocket bonus: 5x for known hiding spots
+            if (r, c) in _TRAIN_UPPER_POCKETS:
+                score *= 5.0
+            if score > best_score:
+                best_score = score
+                best = (r, c)
+    return best
+
 
 # ============================================================
 # DQN Trainer
@@ -486,12 +522,22 @@ class DQNTrainer:
         """
         if random.random() < self.epsilon:
             if ghost_pos is not None:
+                # Ghost visible: A* chase toward ghost
                 pac_pos = self._get_pacman_pos(state)
                 path = _train_astar_path(pac_pos, ghost_pos, state)
                 if path:
                     return self.env.ALL_MOVES.index(path[0])
                 return self.env.ALL_MOVES.index(_train_greedy_toward(pac_pos, ghost_pos, state))
-            return random.randint(0, self.config.n_actions - 1)
+            else:
+                # Ghost hidden: systematically search upper half, prioritize corners
+                pac_pos = self._get_pacman_pos(state)
+                search_target = _train_find_search_target(pac_pos, state)
+                if search_target is not None:
+                    path = _train_astar_path(pac_pos, search_target, state)
+                    if path:
+                        return self.env.ALL_MOVES.index(path[0])
+                    return self.env.ALL_MOVES.index(_train_greedy_toward(pac_pos, search_target, state))
+                return random.randint(0, self.config.n_actions - 1)
 
         with torch.no_grad():
             state_t = torch.FloatTensor(state).unsqueeze(0).unsqueeze(0).to(self.device)
