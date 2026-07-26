@@ -1,0 +1,56 @@
+Ghost Hiding Probability Map
+============================================================
+Legend:
+  # = wall
+  . = empty (low priority)
+  D = dead end (top hiding spot)
+  C = corner
+  p = pocket
+  U = upper half (no dead-end/corner/pocket)
+  numbers 1-9 = top 9 ranked cells
+============================================================
+
+#####################  0
+#CUUUUUUUC#CUUUUUUUC#  1
+#U###U###U#U###U###U#  2
+#U###U###U#U###U###U#  3
+#UUUUUUUUUUUUUUUUUUU#  4
+#U###U#U#####U#U###U#  5
+#CUUUU#9U5#6UC#UUUUC#  6
+#####U###U#U###U#####  7
+#####U#7UUUUU8#U#####  8
+#####U#U##U##U#U#####  9
+#3ppp...#1.2#...ppp4#  10
+#####.#.#####.#.#####  11
+#####.#.#####.#.#####  12
+#C.......C#C.......C#  13
+#.###.###.#.###.###.#  14
+#C.C#...........#C.C#  15
+###.#.#.#####.#.#.###  16
+#C.......C#C.C#C...C#  17
+#.#######.#.#######.#  18
+#C.................C#  19
+#####################  20
+
+Top 20 hiding spots (rank, position, dead-end?, corner?, pocket?, upper-half?, score):
+----------------------------------------------------------------------
+    1. (10, 9)  DE    PO     score=20.0
+    2. (10,11)  DE    PO     score=20.0
+    3. (10, 1)  DE    PO     score=11.1
+    4. (10,19)  DE    PO     score=11.1
+    5. ( 6, 9)     CO    UP  score=10.8
+    6. ( 6,11)     CO    UP  score=10.8
+    7. ( 8, 7)     CO    UP  score=10.8
+    8. ( 8,13)     CO    UP  score=10.8
+    9. ( 6, 7)     CO    UP  score=10.3
+   10. ( 6,13)     CO    UP  score=10.3
+   11. ( 1, 9)     CO    UP  score=9.9
+   12. ( 1,11)     CO    UP  score=9.9
+   13. ( 6, 1)     CO    UP  score=9.7
+   14. ( 6,19)     CO    UP  score=9.7
+   15. ( 1, 1)     CO    UP  score=9.5
+   16. ( 1,19)     CO    UP  score=9.5
+   17. ( 9,10)           UP  score=6.0
+   18. ( 8,10)           UP  score=4.5
+   19. ( 8, 9)           UP  score=4.0
+   20. ( 8,11)           UP  score=4.0
