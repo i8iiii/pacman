@@ -76,6 +76,64 @@ UPPER_POCKETS = {
 }
 
 
+# Staged search: systematic ghost hunting with priority order
+_SIDE_CORNERS = {
+    (1, 1), (1, 2), (1, 3),
+    (1, 17), (1, 18), (1, 19),
+}
+_MIDDLE_POCKETS = {
+    (5, 5), (5, 6),
+    (5, 14), (5, 15),
+    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
+}
+
+def _pacman_find_target_by_stage(my_pos, internal_map, stage):
+    """Find target matching search stage (1=side corners, 2=pockets, 3=upper half, 4=lower)."""
+    if internal_map is None:
+        return None
+    h, w = internal_map.shape
+    mid_row = h // 2
+    best = None
+    best_score = -1.0
+    for r in range(h):
+        for c in range(w):
+            if internal_map[r, c] != 0:
+                continue
+            has_unknown = False
+            for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
+                dr, dc = move.value
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < h and 0 <= nc < w and internal_map[nr, nc] == -1:
+                    has_unknown = True
+                    break
+            if not has_unknown:
+                continue
+            if stage == 1 and (r, c) not in _SIDE_CORNERS:
+                continue
+            if stage == 2 and (r, c) not in _MIDDLE_POCKETS:
+                continue
+            if stage == 3 and (r >= mid_row or (r, c) in _SIDE_CORNERS or (r, c) in _MIDDLE_POCKETS):
+                continue
+            if stage == 4 and r < mid_row:
+                continue
+            dist = _pacman_manhattan(my_pos, (r, c))
+            if dist == 0:
+                continue
+            score = 1.0 / dist
+            if score > best_score:
+                best_score = score
+                best = (r, c)
+    return best
+
+def _pacman_staged_search(my_pos, internal_map, current_stage):
+    """Systematic search: 1=side, 2=pockets, 3=upper, 4=lower."""
+    for stage in range(current_stage, 5):
+        target = _pacman_find_target_by_stage(my_pos, internal_map, stage)
+        if target is not None:
+            return target, stage
+    return None, current_stage
+
+
 def _pacman_astar(start, goal, map_state):
     """A* pathfinding from start to goal. Returns list of Move enums, or empty list if no path."""
     if start == goal:
@@ -112,40 +170,9 @@ def _pacman_astar(start, goal, map_state):
 
 
 def _pacman_find_frontier(my_pos, internal_map):
-    """Find best frontier cell with upper-half and pocket priority."""
-    if internal_map is None:
-        return None
-    h, w = internal_map.shape
-    mid_row = h // 2
-    best = None
-    best_score = -1.0
-    for r in range(h):
-        for c in range(w):
-            if internal_map[r, c] != 0:
-                continue
-            has_unknown = False
-            for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-                dr, dc = move.value
-                nr, nc = r + dr, c + dc
-                if 0 <= nr < h and 0 <= nc < w and internal_map[nr, nc] == -1:
-                    has_unknown = True
-                    break
-            if not has_unknown:
-                continue
-            dist = _pacman_manhattan(my_pos, (r, c))
-            if dist == 0:
-                continue
-            score = 1.0 / dist
-            # Upper-half bonus: 2x score (ghost spawns there)
-            if r < mid_row:
-                score *= 2.0
-            # Pocket bonus: 3x score for known hiding spots
-            if (r, c) in UPPER_POCKETS:
-                score *= 3.0
-            if score > best_score:
-                best_score = score
-                best = (r, c)
-    return best
+    """Find best frontier cell using staged search (1=side, 2=pockets, 3=upper, 4=lower)."""
+    target, _ = _pacman_staged_search(my_pos, internal_map, 1)
+    return target
 
 
 # ============================================================
@@ -185,6 +212,8 @@ class PacmanAgent(BasePacmanAgent):
         self.map_initialized = False
         self.last_known_enemy_pos = None
         self.steps_since_seen = 0
+        self._search_stage = 1
+        self._searched_stages = set()
         self.last_move = None
 
         # ── Confidence threshold tracking (may be overridden by checkpoint) ──
@@ -271,12 +300,17 @@ class PacmanAgent(BasePacmanAgent):
             else:
                 chosen_move = self._greedy_toward(my_position, self.last_known_enemy_pos)
         else:
-            # Lost sight too long — explore frontier
-            frontier = _pacman_find_frontier(my_position, self.internal_map)
-            if frontier:
-                path = _pacman_astar(my_position, frontier, self.internal_map)
+            # Lost sight too long — staged search
+            target, stage = _pacman_staged_search(my_position, self.internal_map, self._search_stage)
+            if target is not None:
+                path = _pacman_astar(my_position, target, self.internal_map)
                 if path:
                     chosen_move = path[0]
+                    if my_position == target:
+                        more = _pacman_find_target_by_stage(my_position, self.internal_map, stage)
+                        if more is None:
+                            self._searched_stages.add(stage)
+                            self._search_stage = stage + 1
             if chosen_move == Move.STAY:
                 chosen_move = self._random_valid_move(my_position)
 
