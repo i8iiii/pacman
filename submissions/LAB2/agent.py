@@ -204,7 +204,7 @@ class PacmanAgent(BasePacmanAgent):
 
                 current_dir = Path(__file__).parent
                 checkpoint = None
-                for model_name in ["best_pacman_dqn_v2.pt", "pacman_dqn_v2.pt", "pacman_dqn.pt", "best_pacman_dqn.pt"]:
+                for model_name in ["best_pacman_dqn_v2.pt", "pacman_dqn.pt"]:
                     model_path = current_dir / model_name
                     if model_path.exists():
                         checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
