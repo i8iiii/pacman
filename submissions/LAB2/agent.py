@@ -1,11 +1,11 @@
-import sys
+#!/usr/bin/env python3
+"""PacmanAgent: 6-ply Minimax + staged search (no ML)."""
+import sys, random, numpy as np
+from collections import deque
 from pathlib import Path
 from heapq import heappush, heappop
-import random
-import numpy as np
 
-# Add src to path to import framework classes
-src_path = Path(__file__).parent.parent.parent / "src"
+src_path = Path(__file__).resolve().parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from agent_interface import PacmanAgent as BasePacmanAgent
@@ -13,10 +13,12 @@ from agent_interface import GhostAgent as BaseGhostAgent
 from environment import Move
 from hide_agent.controller import HideController
 
+DIRS = (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT)
+INF = 10 ** 9
+
+# ---------- GhostAgent (unchanged) --------------------------------------
 
 class GhostAgent(BaseGhostAgent):
-    """Arena entry point for the phased Hide agent."""
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.name = "Hide-Agent"
@@ -29,421 +31,335 @@ class GhostAgent(BaseGhostAgent):
             capture_distance=kwargs.get("capture_distance", 2),
             observation_radius=kwargs.get("observation_radius", 5),
         )
-
     def step(self, map_state, my_position, enemy_position, step_number):
         return self._controller.step(map_state, my_position, enemy_position, step_number)
 
+# ---------- Helpers -----------------------------------------------------
 
-# ============================================================
-# PACMAN HELPER FUNCTIONS
-# ============================================================
-
-def _pacman_is_valid_position(pos, map_state):
-    """Check if position is valid on internal map (not wall, within bounds)."""
-    row, col = pos
-    height, width = map_state.shape
-    if row < 0 or row >= height or col < 0 or col >= width:
-        return False
-    return map_state[row, col] != 1
-
-
-def _pacman_get_neighbors(pos, map_state):
-    """Get valid neighboring positions and their moves."""
-    neighbors = []
-    for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-        dr, dc = move.value
-        next_pos = (pos[0] + dr, pos[1] + dc)
-        if _pacman_is_valid_position(next_pos, map_state):
-            neighbors.append((next_pos, move))
-    return neighbors
-
-
-def _pacman_manhattan(a, b):
-    """Manhattan distance between two positions."""
+def _manhattan(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+def _is_valid(pos, map_state):
+    r, c = pos
+    if map_state is None:
+        return False
+    h, w = map_state.shape
+    return 0 <= r < h and 0 <= c < w and map_state[r, c] != 1
 
-# Known hiding pockets in the classic 21x21 map (upper half)
-UPPER_POCKETS = {
-    # Side corners (top-left)
-    (1, 1), (1, 2), (1, 3),
-    # Side corners (top-right)
-    (1, 17), (1, 18), (1, 19),
-    # Upper-middle alcoves
-    (5, 5), (5, 6),
-    (5, 14), (5, 15),
-    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
-}
+def _get_neighbors(pos, map_state):
+    neighbors = []
+    for move in DIRS:
+        dr, dc = move.value
+        nxt = (pos[0] + dr, pos[1] + dc)
+        if _is_valid(nxt, map_state):
+            neighbors.append((nxt, move))
+    return neighbors
 
-
-# Staged search: systematic ghost hunting with priority order
-_SIDE_CORNERS = {
-    (1, 1), (1, 2), (1, 3),
-    (1, 17), (1, 18), (1, 19),
-}
-_MIDDLE_POCKETS = {
-    (5, 5), (5, 6),
-    (5, 14), (5, 15),
-    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
-}
-
-def _pacman_find_target_by_stage(my_pos, internal_map, stage):
-    """Find target matching search stage (1=side corners, 2=pockets, 3=upper half, 4=lower)."""
-    if internal_map is None:
-        return None
-    h, w = internal_map.shape
-    mid_row = h // 2
-    best = None
-    best_score = -1.0
-    for r in range(h):
-        for c in range(w):
-            if internal_map[r, c] != 0:
-                continue
-            has_unknown = False
-            for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-                dr, dc = move.value
-                nr, nc = r + dr, c + dc
-                if 0 <= nr < h and 0 <= nc < w and internal_map[nr, nc] == -1:
-                    has_unknown = True
-                    break
-            if not has_unknown:
-                continue
-            if stage == 1 and (r, c) not in _SIDE_CORNERS:
-                continue
-            if stage == 2 and (r, c) not in _MIDDLE_POCKETS:
-                continue
-            if stage == 3 and (r >= mid_row or (r, c) in _SIDE_CORNERS or (r, c) in _MIDDLE_POCKETS):
-                continue
-            if stage == 4 and r < mid_row:
-                continue
-            dist = _pacman_manhattan(my_pos, (r, c))
-            if dist == 0:
-                continue
-            score = 1.0 / dist
-            if score > best_score:
-                best_score = score
-                best = (r, c)
-    return best
-
-def _pacman_staged_search(my_pos, internal_map, current_stage):
-    """Systematic search: 1=side, 2=pockets, 3=upper, 4=lower."""
-    for stage in range(current_stage, 5):
-        target = _pacman_find_target_by_stage(my_pos, internal_map, stage)
-        if target is not None:
-            return target, stage
-    return None, current_stage
-
-
-def _pacman_astar(start, goal, map_state):
-    """A* pathfinding from start to goal. Returns list of Move enums, or empty list if no path."""
+def _astar(start, goal, map_state):
     if start == goal:
         return []
-
-    # Pre-validate that goal is reachable (BFS check) to avoid wasted search
-    open_set = [(0, 0, start, [])]  # (f_score, counter, pos, path_of_moves)
+    open_set = [(0, 0, start, [])]
     g_score = {start: 0}
-    closed_set = set()
+    closed = set()
     counter = 0
-
     while open_set:
         _, _, current, path = heappop(open_set)
-
-        if current in closed_set:
-            continue
-        closed_set.add(current)
-
-        if current == goal:
-            return path
-
-        for next_pos, move in _pacman_get_neighbors(current, map_state):
-            if next_pos in closed_set:
-                continue
-
-            tentative_g = g_score[current] + 1
-            if tentative_g < g_score.get(next_pos, float('inf')):
-                g_score[next_pos] = tentative_g
-                h = _pacman_manhattan(next_pos, goal)
+        if current in closed: continue
+        closed.add(current)
+        if current == goal: return path
+        for nxt, move in _get_neighbors(current, map_state):
+            if nxt in closed: continue
+            tg = g_score[current] + 1
+            if tg < g_score.get(nxt, float('inf')):
+                g_score[nxt] = tg
+                h = _manhattan(nxt, goal)
                 counter += 1
-                heappush(open_set, (tentative_g + h, counter, next_pos, path + [move]))
+                heappush(open_set, (tg + h, counter, nxt, path + [move]))
+    return []
 
-    return []  # No path found
+def _greedy_toward(my_pos, target, map_state):
+    best_move, best_dist = Move.STAY, _manhattan(my_pos, target)
+    for move in DIRS:
+        dr, dc = move.value
+        nxt = (my_pos[0] + dr, my_pos[1] + dc)
+        if _is_valid(nxt, map_state):
+            d = _manhattan(nxt, target)
+            if d < best_dist:
+                best_dist, best_move = d, move
+    return best_move
 
+# ---------- Staged search targets ---------------------------------------
 
-def _pacman_find_frontier(my_pos, internal_map):
-    """Find best frontier cell using staged search (1=side, 2=pockets, 3=upper, 4=lower)."""
-    target, _ = _pacman_staged_search(my_pos, internal_map, 1)
-    return target
+_SIDE_CORNERS = {
+    (1, 1), (1, 2), (1, 3), (1, 17), (1, 18), (1, 19),
+}
+_MIDDLE_POCKETS = {
+    (5, 5), (5, 6), (5, 14), (5, 15),
+    (9, 8), (9, 9), (9, 10), (9, 11), (9, 12),
+}
 
+def _find_stage_target(my_pos, internal_map, stage):
+    if internal_map is None: return None
+    h, w = internal_map.shape
+    mid_row = h // 2
+    best, best_score = None, -1.0
+    for r in range(h):
+        for c in range(w):
+            if internal_map[r, c] != 0: continue
+            has_unknown = any(
+                0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                and internal_map[r + mv.value[0], c + mv.value[1]] == -1
+                for mv in DIRS
+            )
+            if not has_unknown: continue
+            if stage == 1 and (r, c) not in _SIDE_CORNERS: continue
+            if stage == 2 and (r, c) not in _MIDDLE_POCKETS: continue
+            if stage == 3 and (r >= mid_row or (r, c) in _SIDE_CORNERS or (r, c) in _MIDDLE_POCKETS): continue
+            if stage == 4 and r < mid_row: continue
+            dist = _manhattan(my_pos, (r, c))
+            if dist == 0: continue
+            score = 1.0 / dist
+            if score > best_score: best_score, best = score, (r, c)
+    return best
 
-# ============================================================
-# PACMAN AGENT — DQN primary + A* fallback
-# ============================================================
+def _staged_search(my_pos, internal_map, current_stage):
+    for stage in range(current_stage, 5):
+        target = _find_stage_target(my_pos, internal_map, stage)
+        if target is not None: return target, stage
+    return None, current_stage
 
-# Attempt to import torch and model; gracefully degrade if unavailable
-try:
-    import torch
-    from model import PacmanCNN
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-    PacmanCNN = None
-
+# ---------- Minimax seeker ----------------------------------------------
 
 class PacmanAgent(BasePacmanAgent):
-    """
-    Pacman (Seeker) agent with CNN-DQN primary + A* fallback.
-
-    Decision flow:
-    1. If enemy visible and DQN confident → use DQN move
-    2. If enemy visible but DQN uncertain → A* to enemy
-    3. If enemy hidden but recently seen → A* to last known position
-    4. If enemy hidden too long → A* to frontier (explore)
-    """
-
-    ALL_MOVES = [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.pacman_speed = max(1, int(kwargs.get('pacman_speed', 1)))
-        self.name = "Pacman-1.2-DQN"
-
-        # ── State tracking ──
+        self.pacman_speed = max(1, int(kwargs.get("pacman_speed", 1)))
+        self.name = "Minimax6-Seeker"
         self.internal_map = None
         self.map_initialized = False
         self.last_known_enemy_pos = None
         self.steps_since_seen = 0
-        self._search_stage = 1
-        self._searched_stages = set()
         self.last_move = None
+        self._search_stage = 1
+        self._valid = None
+        self._bfs_cache = {}
+        self._pair_dist = {}
+        self._exit_cache = {}
 
-        # ── Confidence threshold tracking (may be overridden by checkpoint) ──
-        self._total_epochs = max(1, int(kwargs.get("total_epochs", 200)))
-        self._current_epoch = max(0, int(kwargs.get("current_epoch", 0)))
+    # ---------- precomputation ------------------------------------------
 
-        # ── Load DQN model ──
-        self.device = torch.device("cpu") if TORCH_AVAILABLE else None
-        self.model = None
-        if TORCH_AVAILABLE:
-            try:
-                # Try importing v2 model class for auto-detection
-                try:
-                    from model import PacmanCNNv2
-                except ImportError:
-                    PacmanCNNv2 = None
+    def _precompute(self, map_state):
+        h, w = map_state.shape
+        self._valid = {(r, c) for r in range(h) for c in range(w) if map_state[r, c] == 0}
+        for pos in self._valid:
+            self._exit_cache[pos] = sum(
+                1 for mv in DIRS
+                if (pos[0] + mv.value[0], pos[1] + mv.value[1]) in self._valid
+            )
 
-                current_dir = Path(__file__).parent
-                checkpoint = None
-                for model_name in ["best_pacman_dqn_v2.pt"]:
-                    model_path = current_dir / model_name
-                    if model_path.exists():
-                        checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
-                        break
-
-                if checkpoint is not None:
-                    # Auto-detect v1 vs v2 by checking for conv3 key
-                    state_dict = checkpoint.get('model_state_dict', checkpoint)
-                    is_v2 = any('conv3' in k for k in state_dict.keys())
-
-                    if is_v2 and PacmanCNNv2 is not None:
-                        self.model = PacmanCNNv2()
-                    elif PacmanCNN is not None:
-                        self.model = PacmanCNN()
-                    else:
-                        self.model = None
-
-                    if self.model is not None:
-                        self.model.load_state_dict(state_dict)
-                        self.model.eval()
-
-                    # Read training epoch count for dynamic confidence threshold
-                    if isinstance(checkpoint, dict):
-                        self._total_epochs = max(1, int(checkpoint.get('training_epochs', self._total_epochs)))
-                        self._current_epoch = max(0, int(checkpoint.get('epoch', self._current_epoch)))
-                else:
-                    # No trained weights found — DQN will return None
-                    self.model = None
-            except Exception:
-                self.model = None
+    # ---------- step ----------------------------------------------------
 
     def step(self, map_state, my_position, enemy_position, step_number):
-        # 1. Update internal map memory
         self._update_map_memory(map_state)
-
-        # 2. Track enemy visibility
         if enemy_position is not None:
             self.last_known_enemy_pos = enemy_position
             self.steps_since_seen = 0
         else:
             self.steps_since_seen += 1
 
-        # 3. Choose move
+        my_pos = (int(my_position[0]), int(my_position[1]))
+        enemy_pos = (int(enemy_position[0]), int(enemy_position[1])) if enemy_position is not None else None
+
+        if self._valid is None:
+            self._precompute(map_state)
+
         chosen_move = Move.STAY
         path = None
 
-        if enemy_position is not None:
-            # Enemy visible — try DQN first
-            dqn_move = self._get_dqn_move(map_state, my_position, enemy_position)
-            if dqn_move is not None:
-                chosen_move = dqn_move
+        if enemy_pos is not None:
+            # Ghost visible: use minimax or A*
+            if _manhattan(my_pos, enemy_pos) < 2:
+                chosen_move = Move.STAY
             else:
-                # DQN not confident or unavailable — A* to enemy
-                path = _pacman_astar(my_position, enemy_position, self.internal_map)
-                if path:
-                    chosen_move = path[0]
-                else:
-                    chosen_move = self._greedy_toward(my_position, enemy_position)
+                self._bfs_cache.clear(); self._pair_dist.clear()
+                action = self._minimax_root(my_pos, enemy_pos)
+                chosen_move = action[0] if action else Move.STAY
+                if chosen_move == Move.STAY:
+                    path = _astar(my_pos, enemy_pos, self.internal_map)
+                    if path: chosen_move = path[0]
+                    else: chosen_move = _greedy_toward(my_pos, enemy_pos, self.internal_map)
         elif self.last_known_enemy_pos is not None and self.steps_since_seen <= 10:
-            # Lost sight recently — A* to last known position
-            path = _pacman_astar(my_position, self.last_known_enemy_pos, self.internal_map)
-            if path:
-                chosen_move = path[0]
-            else:
-                chosen_move = self._greedy_toward(my_position, self.last_known_enemy_pos)
+            path = _astar(my_pos, self.last_known_enemy_pos, self.internal_map)
+            if path: chosen_move = path[0]
+            else: chosen_move = _greedy_toward(my_pos, self.last_known_enemy_pos, self.internal_map)
         else:
-            # Lost sight too long — staged search
-            target, stage = _pacman_staged_search(my_position, self.internal_map, self._search_stage)
+            # Ghost hidden: staged search
+            target, stage = _staged_search(my_pos, self.internal_map, self._search_stage)
             if target is not None:
-                path = _pacman_astar(my_position, target, self.internal_map)
-                if path:
-                    chosen_move = path[0]
-                    if my_position == target:
-                        more = _pacman_find_target_by_stage(my_position, self.internal_map, stage)
-                        if more is None:
-                            self._searched_stages.add(stage)
-                            self._search_stage = stage + 1
+                path = _astar(my_pos, target, self.internal_map)
+                if path: chosen_move = path[0]
             if chosen_move == Move.STAY:
-                chosen_move = self._random_valid_move(my_position)
+                chosen_move = self._random_valid_move(my_pos)
 
-        # 4. Compute speed steps
-        steps = self._compute_steps(my_position, chosen_move, path)
-
+        steps = self._compute_steps(my_pos, chosen_move, path)
         self.last_move = chosen_move
         return (chosen_move, steps)
 
-    # ── DQN Inference ──
+    # ---------- minimax -------------------------------------------------
 
-    def _get_dqn_move(self, map_state, my_pos, enemy_pos):
-        """Run DQN forward pass. Returns Move if confident, None otherwise."""
-        if self.model is None or not TORCH_AVAILABLE:
-            return None
+    def _minimax_root(self, pac_pos, ghost_pos):
+        actions = self._pacman_actions(pac_pos)
+        actions.sort(key=lambda a: self._bfs_dist(self._apply_action(pac_pos, a), ghost_pos))
+        best_score, best_action = -INF, (Move.STAY, 1)
+        alpha, beta = -INF, INF
+        for action in actions:
+            new_pac = self._apply_action(pac_pos, action)
+            score = self._min_node(new_pac, ghost_pos, 6, alpha, beta)
+            if score > best_score: best_score, best_action = score, action
+            alpha = max(alpha, score)
+        return best_action
 
-        try:
-            # Encode state
-            input_map = self.internal_map.copy().astype(np.float32)
-            input_map[my_pos] = 2.0
-            input_map[enemy_pos] = 3.0
+    def _min_node(self, pac_pos, ghost_pos, depth, alpha, beta):
+        if _manhattan(pac_pos, ghost_pos) < 2: return 100000 + depth
+        if depth == 0: return self._evaluate(pac_pos, ghost_pos)
+        ghost_moves = self._scored_ghost_moves(pac_pos, ghost_pos)
+        best = INF
+        for new_ghost, _ in ghost_moves:
+            val = self._max_node(pac_pos, new_ghost, depth - 1, alpha, beta)
+            if val < best: best = val
+            if best <= alpha: return best
+            beta = min(beta, best)
+        return best if best != INF else self._evaluate(pac_pos, ghost_pos)
 
-            state_tensor = torch.FloatTensor(input_map).unsqueeze(0).unsqueeze(0).to(self.device)
+    def _max_node(self, pac_pos, ghost_pos, depth, alpha, beta):
+        if _manhattan(pac_pos, ghost_pos) < 2: return 100000 + depth
+        if depth == 0: return self._evaluate(pac_pos, ghost_pos)
+        actions = self._pacman_actions(pac_pos)
+        if not actions: return self._evaluate(pac_pos, ghost_pos)
+        actions.sort(key=lambda a: self._bfs_dist(self._apply_action(pac_pos, a), ghost_pos))
+        best = -INF
+        for action in actions:
+            new_pac = self._apply_action(pac_pos, action)
+            val = self._min_node(new_pac, ghost_pos, depth - 1, alpha, beta)
+            if val > best: best = val
+            if best >= beta: return best
+            alpha = max(alpha, best)
+        return best
 
-            # Encode last move
-            last_move_vec = np.zeros(4, dtype=np.float32)
-            if self.last_move in self.ALL_MOVES:
-                last_move_vec[self.ALL_MOVES.index(self.last_move)] = 1.0
-            move_tensor = torch.FloatTensor(last_move_vec).unsqueeze(0).to(self.device)
+    def _scored_ghost_moves(self, pac_pos, ghost_pos):
+        moves = []
+        aligned = self._aligned_with_pacman(ghost_pos, pac_pos)
+        perpendicular = self._perpendicular_to(ghost_pos, pac_pos) if aligned else set()
+        for mv in (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT, Move.STAY):
+            new_pos = ghost_pos if mv == Move.STAY else (ghost_pos[0] + mv.value[0], ghost_pos[1] + mv.value[1])
+            if mv != Move.STAY and new_pos not in self._valid: continue
+            dist = self._bfs_dist(pac_pos, new_pos)
+            exits = self._exit_cache.get(new_pos, 0)
+            score = dist * 10 + exits * 3
+            if mv in perpendicular: score += 30
+            moves.append((new_pos, score))
+        moves.sort(key=lambda x: x[1], reverse=True)
+        return moves
 
-            # Forward pass
-            with torch.no_grad():
-                q_values = self.model(state_tensor, move_tensor).squeeze(0)  # [4]
+    def _aligned_with_pacman(self, ghost_pos, pac_pos):
+        if ghost_pos[0] == pac_pos[0]:
+            left, right = sorted((ghost_pos[1], pac_pos[1]))
+            return all((ghost_pos[0], c) in self._valid for c in range(left + 1, right))
+        if ghost_pos[1] == pac_pos[1]:
+            top, bottom = sorted((ghost_pos[0], pac_pos[0]))
+            return all((r, ghost_pos[1]) in self._valid for r in range(top + 1, bottom))
+        return False
 
-            # Confidence check
-            confidence = q_values.max().item() - q_values.mean().item()
-            if confidence < self._get_confidence_threshold():
-                return None
+    def _perpendicular_to(self, ghost_pos, pac_pos):
+        if ghost_pos[0] == pac_pos[0]: return {Move.UP, Move.DOWN}
+        return {Move.LEFT, Move.RIGHT}
 
-            # Get best valid move
-            best_idx = q_values.argmax().item()
-            predicted_move = self.ALL_MOVES[best_idx]
+    def _evaluate(self, pac_pos, ghost_pos):
+        dist = self._bfs_dist(pac_pos, ghost_pos)
+        exits = self._exit_cache.get(ghost_pos, 0)
+        return -(dist * 10 + exits * 3)
 
-            # Validate: must not move into wall
-            if self._can_move(my_pos, predicted_move):
-                return predicted_move
+    # ---------- BFS -----------------------------------------------------
 
-        except Exception:
-            pass
+    def _bfs_dist(self, a, b):
+        if a == b: return 0
+        if a not in self._valid or b not in self._valid: return INF
+        key = (a, b)
+        if key not in self._pair_dist:
+            self._pair_dist[key] = self._bfs_compute(a).get(b, INF)
+        return self._pair_dist[key]
 
-        return None
+    def _bfs_compute(self, start):
+        if start not in self._bfs_cache:
+            dist = {start: 0}
+            q = deque([start])
+            while q:
+                cur = q.popleft()
+                for mv in DIRS:
+                    nxt = (cur[0] + mv.value[0], cur[1] + mv.value[1])
+                    if nxt in self._valid and nxt not in dist:
+                        dist[nxt] = dist[cur] + 1
+                        q.append(nxt)
+            self._bfs_cache[start] = dist
+        return self._bfs_cache[start]
 
-    def _get_confidence_threshold(self):
-        """Dynamic threshold that decays as DQN matures through training."""
-        if self._total_epochs <= 0:
-            return 0.5
-        t = self._current_epoch / float(self._total_epochs)
-        final = 0.8 * (0.98 ** (t * self._total_epochs)) if t < 1.0 else 0.2
-        return max(0.2, min(0.8, final))
+    # ---------- Pacman actions ------------------------------------------
 
-    # ── Map Memory ──
+    def _pacman_actions(self, pos):
+        actions = []
+        for mv in DIRS:
+            r, c = pos
+            valid_steps = 0
+            for _ in range(self.pacman_speed):
+                r += mv.value[0]; c += mv.value[1]
+                if (r, c) not in self._valid: break
+                valid_steps += 1
+            for s in range(1, valid_steps + 1):
+                actions.append((mv, s))
+        return actions if actions else [(Move.STAY, 1)]
+
+    def _apply_action(self, pos, action):
+        move, steps = action
+        if move == Move.STAY: return pos
+        r, c = pos
+        for _ in range(steps):
+            nr, nc = r + move.value[0], c + move.value[1]
+            if (nr, nc) not in self._valid: break
+            r, c = nr, nc
+        return (r, c)
+
+    # ---------- Map memory / movement -----------------------------------
 
     def _update_map_memory(self, map_state):
-        """Build and maintain internal map by merging fog observations over time."""
         if not self.map_initialized:
             self.internal_map = np.full_like(map_state, -1)
             self.internal_map[map_state == 1] = 1
             self.map_initialized = True
-
-        # Merge visible cells into memory
         visible_mask = map_state != -1
         self.internal_map[visible_mask] = map_state[visible_mask]
-
-        # Restore agent position markers back to empty (they move)
         self.internal_map[(self.internal_map == 2) | (self.internal_map == 3)] = 0
 
-    # ── Movement Helpers ──
-
-    def _greedy_toward(self, my_pos, target):
-        """Move greedily toward target using Manhattan distance."""
-        best_move = Move.STAY
-        best_dist = _pacman_manhattan(my_pos, target)
-        for move in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]:
-            dr, dc = move.value
-            nxt = (my_pos[0] + dr, my_pos[1] + dc)
-            if self._is_valid_on_internal(nxt):
-                d = _pacman_manhattan(nxt, target)
-                if d < best_dist:
-                    best_dist = d
-                    best_move = move
-        return best_move
-
     def _random_valid_move(self, my_pos):
-        """Pick a random valid move."""
-        moves = [mv for mv in [Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT]
-                 if self._can_move(my_pos, mv)]
+        moves = [mv for mv in DIRS if self._can_move(my_pos, mv)]
         return random.choice(moves) if moves else Move.STAY
 
     def _can_move(self, pos, move):
-        """Check if a single step in the given direction is valid."""
         dr, dc = move.value
-        nxt = (pos[0] + dr, pos[1] + dc)
-        return self._is_valid_on_internal(nxt)
-
-    def _is_valid_on_internal(self, pos):
-        """Check if position is valid on internal map."""
-        if self.internal_map is None:
-            return False
-        r, c = pos
-        h, w = self.internal_map.shape
-        return 0 <= r < h and 0 <= c < w and self.internal_map[r, c] != 1
+        return _is_valid((pos[0] + dr, pos[1] + dc), self.internal_map)
 
     def _compute_steps(self, my_pos, chosen_move, path):
-        """Compute how many speed steps to take (1 or 2) based on path straightness."""
         steps = 1
         if chosen_move != Move.STAY and self.pacman_speed >= 2:
-            # Only use speed=2 if the path is straight for 2+ tiles
-            can_move_2 = self._can_move_n(my_pos, chosen_move, 2)
-
-            # Check path doesn't turn at step 2 (no overshooting corners)
+            can_2 = self._can_move_n(my_pos, chosen_move, 2)
             if path and len(path) >= 2 and path[0] == chosen_move and path[1] != chosen_move:
-                can_move_2 = False
-
-            if can_move_2:
-                steps = 2
+                can_2 = False
+            if can_2: steps = 2
         return steps
 
     def _can_move_n(self, pos, move, n):
-        """Check if we can move n steps in a straight line."""
         r, c = pos
         dr, dc = move.value
         for i in range(1, n + 1):
             nr, nc = r + dr * i, c + dc * i
-            if not self._is_valid_on_internal((nr, nc)):
-                return False
+            if not _is_valid((nr, nc), self.internal_map): return False
         return True
