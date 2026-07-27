@@ -570,7 +570,7 @@ class SweepPlanner:
         self._map_memory = map_memory
         self._recent_cooldown: list = []
         self._visit_count: dict = {}
-        self._cooldown_size = 10
+        self._cooldown_size = 20
         self._current_path: "list | None" = None
         self._current_target: "tuple | None" = None
         self._patrol_candidates: list = []
@@ -579,10 +579,17 @@ class SweepPlanner:
         self._upper_only_steps = 0  # steps spent in upper-half-only mode
 
     def next_move(self, pacman_pos: tuple) -> Move:
-        """Return the next move: go directly to the highest-probability hiding spot."""
+        """Return the next move to systematically explore the map.
+
+        Priority queue for upper-half hiding spots:
+          1. Corners & pockets in the zone nearest Pacman (left/middle/right)
+          2. Other corners & pockets in remaining upper-half zones
+          3. Dead ends anywhere in upper half
+          4. Lower-half cells (only after upper is exhausted)
+        """
         self._last_pacman_pos = pacman_pos
 
-        # Continue following current path
+        # If we have a current path, continue following it
         if self._current_path:
             move = self._current_path.pop(0)
             next_pos = (pacman_pos[0] + move.value[0], pacman_pos[1] + move.value[1])
@@ -596,15 +603,135 @@ class SweepPlanner:
         has_unknown = (m == -1).any()
         h, w = m.shape
         analysis = self._ghost_prob._analyzer.get_analysis()
+        mid_row = analysis["mid_row"] if analysis else h // 2
 
-        # Go directly to highest-probability ghost hiding spot
+        # Zone boundaries for upper half
+        left_max = w // 3
+        right_min = 2 * w // 3
+
+        # Collect upper-half hiding spots by zone
+        dead_ends = analysis["dead_ends"] if analysis else set()
+        corners = analysis["corners"] if analysis else set()
+        pockets = analysis["pockets"] if analysis else {}
+
+        # Build pocket membership
+        pocket_of = {}
+        for pid, region in pockets.items():
+            for cell in region:
+                pocket_of[cell] = pid
+
+        # Zone classification helper
+        def _zone(cell):
+            if cell[1] < left_max:
+                return "left"
+            elif cell[1] >= right_min:
+                return "right"
+            return "middle"
+
+        # Build priority lists per zone (upper-half only, unvisited first)
+        zones = {"left": [], "middle": [], "right": []}
+        for cell in corners:
+            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+                zones[_zone(cell)].append(("corner", cell))
+        for cell in pocket_of:
+            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+                if cell not in corners:
+                    zones[_zone(cell)].append(("pocket", cell))
+        for cell in dead_ends:
+            if cell[0] < mid_row and cell not in self._recent_cooldown:
+                if cell not in corners and cell not in pocket_of:
+                    zones[_zone(cell)].append(("dead_end", cell))
+
+        # ---- Hardcoded priority hiding spots (ghost's favorite corners) ----
+        # These are the complex corner regions the ghost most frequently uses
+        _priority_regions = [
+            # Upper-left pocket: rows 1-5, cols 1-4
+            (1, 1), (1, 2), (1, 3), (1, 4),
+            (2, 1), (2, 4), (3, 1), (3, 4),
+            (4, 1), (4, 4), (5, 1), (5, 2), (5, 3), (5, 4),
+            # Middle pocket: rows 7-9, cols 4-8
+            (7, 4), (7, 5), (7, 6),
+            (8, 4), (8, 6),
+            (9, 4), (9, 5), (9, 6), (9, 7), (9, 8),
+            # Lower-left pocket: rows 11-19, cols 1-4
+            (11, 1), (11, 2), (11, 3), (11, 4),
+            (13, 1), (13, 4), (15, 1), (15, 4),
+            (17, 1), (17, 4), (19, 1), (19, 2), (19, 3), (19, 4),
+            # Lower corridor: rows 14-15, cols 4-14
+            (14, 4), (14, 7), (14, 10), (14, 13), (14, 14),
+            (15, 4), (15, 7), (15, 10), (15, 13), (15, 14),
+            # Center pocket near row 5, col 10
+            (5, 10),
+        ]
+        _priority_set = set(_priority_regions)
+
+        # Try hardcoded priority spots first (nearest first)
+        priority_sorted = sorted(
+            [c for c in _priority_set if c not in self._recent_cooldown and c != pacman_pos],
+            key=lambda c: _manhattan(pacman_pos, c)
+        )
+        for cell in priority_sorted:
+            if has_unknown:
+                r, c = cell
+                if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                           and m[r + mv.value[0], c + mv.value[1]] == -1
+                           for mv in DIRS):
+                    continue
+            path = self._pf.astar(pacman_pos, cell)
+            if path:
+                self._current_target = cell
+                self._current_path = list(path)
+                self._add_cooldown(cell)
+                return self._current_path.pop(0)
+
+        # Determine which zone Pacman is in (or nearest to)
+        pac_zone = _zone(pacman_pos)
+        zone_order = [pac_zone] + [z for z in ["left", "middle", "right"] if z != pac_zone]
+
+        # Helper: get freshness score
+        def _freshness(cell):
+            r, c = cell
+            fresh = 0
+            for mv in DIRS:
+                nr, nc = r + mv.value[0], c + mv.value[1]
+                if _is_valid((nr, nc), m) and (nr, nc) not in self._recent_cooldown:
+                    fresh += 1
+            return fresh
+
+        # Helper: try to A* to the best cell from a list of typed cells
+        def _try_typed(typed_cells):
+            # Sort: type priority (corner > pocket > dead_end), then freshness
+            type_order = {"corner": 0, "pocket": 1, "dead_end": 2}
+            scored = [(type_order[t], -_freshness(c), -_manhattan(pacman_pos, c), c)
+                      for t, c in typed_cells if c != pacman_pos]
+            scored.sort()
+            for _, _, _, cell in scored:
+                if has_unknown:
+                    r, c = cell
+                    if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                               and m[r + mv.value[0], c + mv.value[1]] == -1
+                               for mv in DIRS):
+                        continue
+                path = self._pf.astar(pacman_pos, cell)
+                if path:
+                    self._current_target = cell
+                    self._current_path = list(path)
+                    self._add_cooldown(cell)
+                    return self._current_path.pop(0)
+            return None
+
+        # ---- Try each zone in order ----
+        for zone in zone_order:
+            result = _try_typed(zones[zone])
+            if result is not None:
+                return result
+
+        # ---- Fallback: all upper-half cells (non-zone-classified) ----
         candidates = self._ghost_prob.compute(pacman_pos)
         for cell in candidates:
-            if cell == pacman_pos:
+            if cell[0] >= mid_row:
                 continue
-            if cell in self._recent_cooldown:
-                continue
-            if self._visit_count.get(cell, 0) >= 2:
+            if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
                 continue
             if has_unknown:
                 r, c = cell
@@ -619,11 +746,39 @@ class SweepPlanner:
                 self._add_cooldown(cell)
                 return self._current_path.pop(0)
 
-        # Fallback: frontier search
+        # ---- Lower half (only after upper exhausted or timeout) ----
+        upper_exhausted = all(c in self._recent_cooldown or c == pacman_pos
+                              for c in candidates if c[0] < mid_row)
+        if upper_exhausted:
+            self._upper_only_steps = 0
+        else:
+            self._upper_only_steps += 1
+
+        if upper_exhausted or self._upper_only_steps >= 30:
+            for cell in candidates:
+                if cell[0] < mid_row:
+                    continue
+                if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
+                    continue
+                if has_unknown:
+                    r, c = cell
+                    if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                               and m[r + mv.value[0], c + mv.value[1]] == -1
+                               for mv in DIRS):
+                        continue
+                path = self._pf.astar(pacman_pos, cell)
+                if path:
+                    self._current_target = cell
+                    self._current_path = list(path)
+                    self._add_cooldown(cell)
+                    return self._current_path.pop(0)
+
+        # Absolute fallback
         if has_unknown:
             return self._fallback_frontier(pacman_pos)
         else:
             return self._fallback_random(pacman_pos)
+
     def _fallback_frontier(self, pacman_pos: tuple) -> Move:
         """Find the nearest known cell adjacent to unknown, move toward it."""
         m = self._pf._map
@@ -772,7 +927,7 @@ class PacmanAgent(BasePacmanAgent):
                 chosen_move = path[0]
             else:
                 chosen_move = self._greedy_toward(my_pos, enemy_pos, internal_map)
-        elif self._last_enemy_pos is not None and self._steps_since_seen <= 15:
+        elif self._last_enemy_pos is not None and self._steps_since_seen <= 5:
             # Recently lost sight: expand-search from last known position
             if self._prev_mode != 'recent':
                 self._sweep.invalidate_path()
@@ -785,7 +940,7 @@ class PacmanAgent(BasePacmanAgent):
                 search = []
                 for de in analysis["dead_ends"]:
                     d = _manhattan(self._last_enemy_pos, de)
-                    if d <= 25:
+                    if d <= 15:
                         search.append((d, de))
                 search.sort()
                 for _, target in search:
@@ -797,7 +952,7 @@ class PacmanAgent(BasePacmanAgent):
                 if chosen_move == Move.STAY:
                     for co in analysis["corners"]:
                         d = _manhattan(self._last_enemy_pos, co)
-                        if d <= 20:
+                        if d <= 10:
                             path = self._pathfinder.astar(my_pos, co)
                             if path:
                                 chosen_move = path[0]
