@@ -2,6 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass
+from heapq import heappop, heappush
 
 from .geometry import (
     CARDINAL_MOVES,
@@ -17,6 +18,93 @@ class RouteTarget:
     kind: str
     position: tuple
     path: tuple
+
+
+@dataclass(frozen=True)
+class ConcealedRoute:
+    """One structural route ranked by predicted sight exposure."""
+
+    path: tuple
+    mode: str
+    road_exposed_steps: int
+    footprint_cost: int
+
+
+def concealment_route(
+    map_state,
+    start,
+    target,
+    footprints,
+    active_road_visible,
+):
+    """Choose zero-road-exposure, least-exposed, then shortest routing."""
+
+    start = tuple(start)
+    target = tuple(target)
+    if footprints is None or active_road_visible is None:
+        return _shortest_route_fallback(map_state, start, target)
+    if not is_structurally_traversable(map_state, start):
+        return _shortest_route_fallback(map_state, start, target)
+    if not is_structurally_traversable(map_state, target):
+        return _shortest_route_fallback(map_state, start, target)
+
+    exposed = {tuple(position) for position in active_road_visible}
+    best = {start: (0, 0, 0)}
+    parents = {start: None}
+    queue = [(0, 0, 0, start)]
+
+    while queue:
+        road_cost, footprint_cost, steps, position = heappop(queue)
+        cost = (road_cost, footprint_cost, steps)
+        if best.get(position) != cost:
+            continue
+        if position == target:
+            return ConcealedRoute(
+                path=tuple(reconstruct_path(parents, target)),
+                mode=(
+                    "concealed"
+                    if road_cost == 0
+                    else "least_exposed"
+                ),
+                road_exposed_steps=road_cost,
+                footprint_cost=footprint_cost,
+            )
+
+        for move in CARDINAL_MOVES:
+            neighbor = apply_move(position, move)
+            if not is_structurally_traversable(map_state, neighbor):
+                continue
+            next_cost = (
+                road_cost + int(neighbor in exposed),
+                footprint_cost
+                + len(footprints.get(neighbor, ())),
+                steps + 1,
+            )
+            if next_cost >= best.get(
+                neighbor,
+                (10**9, 10**9, 10**9),
+            ):
+                continue
+            best[neighbor] = next_cost
+            parents[neighbor] = position
+            heappush(queue, (*next_cost, neighbor))
+
+    return _shortest_route_fallback(map_state, start, target)
+
+
+def _shortest_route_fallback(map_state, start, target):
+    distances, parents = structural_shortest_paths(map_state, start)
+    path = (
+        tuple(reconstruct_path(parents, target))
+        if target in distances
+        else ()
+    )
+    return ConcealedRoute(
+        path=path,
+        mode="shortest_fallback",
+        road_exposed_steps=0,
+        footprint_cost=0,
+    )
 
 
 def choose_no_sight_target(

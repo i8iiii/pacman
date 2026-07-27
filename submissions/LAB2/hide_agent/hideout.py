@@ -21,6 +21,7 @@ from .navigation import reconstruct_path, structural_shortest_paths
 
 
 Position = Tuple[int, int]
+MIN_HIDEOUT_INSPECTION_DEPTH = 3
 
 
 @dataclass(frozen=True)
@@ -196,22 +197,32 @@ def scan_hideouts(
             pacman_spawn,
             ghost_spawn,
         )
-        candidates.append(
-            HideoutCandidate(
-                position=position,
-                kind=kind,
-                entrance=entrance,
-                gate_depth=len(set(terminal)),
-                must_backtrack=bool(terminal),
-                entrance_hidden=entrance_hidden,
-                inspection_depth=inspection_depth,
-                visibility_footprint=len(footprints[position]),
-                spawn_discovery_distance=spawn_discovery_distance,
-                opposite_vertical_band=opposite_vertical_band,
-            )
+        candidate = HideoutCandidate(
+            position=position,
+            kind=kind,
+            entrance=entrance,
+            gate_depth=len(set(terminal)),
+            must_backtrack=bool(terminal),
+            entrance_hidden=entrance_hidden,
+            inspection_depth=inspection_depth,
+            visibility_footprint=len(footprints[position]),
+            spawn_discovery_distance=spawn_discovery_distance,
+            opposite_vertical_band=opposite_vertical_band,
         )
+        if is_strategic_hideout(candidate):
+            candidates.append(candidate)
 
     return tuple(candidates)
+
+
+def is_strategic_hideout(candidate) -> bool:
+    """Return whether a candidate is deep enough for strategic hiding."""
+
+    return (
+        getattr(candidate, "kind", "fallback") != "fallback"
+        and int(getattr(candidate, "inspection_depth", 0))
+        >= MIN_HIDEOUT_INSPECTION_DEPTH
+    )
 
 
 def select_hideout(
@@ -233,6 +244,7 @@ def select_hideout(
     distances, parents = structural_shortest_paths(map_state, ghost_position)
     compromised_positions = {tuple(position) for position in compromised}
     rejections = {
+        "unsafe": 0,
         "compromised": 0,
         "unreachable": 0,
         "lower_class": 0,
@@ -240,7 +252,9 @@ def select_hideout(
     }
     reachable = []
     for candidate in candidates:
-        if candidate.position in compromised_positions:
+        if not is_strategic_hideout(candidate):
+            rejections["unsafe"] += 1
+        elif candidate.position in compromised_positions:
             rejections["compromised"] += 1
         elif candidate.position not in distances:
             rejections["unreachable"] += 1

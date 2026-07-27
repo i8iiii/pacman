@@ -2,8 +2,16 @@
 
 from dataclasses import dataclass
 
-from .hideout import HideoutSelection, hideout_quality_rank
+from .hideout import (
+    HideoutCandidate,
+    HideoutSelection,
+    hideout_quality_rank,
+    is_strategic_hideout,
+)
 from .navigation import reconstruct_path, structural_shortest_paths
+
+
+ROAD_STAGE_TURNS = 10
 
 
 @dataclass(frozen=True)
@@ -49,7 +57,7 @@ class RoadVisibility:
 
 @dataclass(frozen=True)
 class RoadCycleStage:
-    """One five-turn road set in the repeating search prediction."""
+    """One timed road set in the repeating search prediction."""
 
     index: int
     label: str
@@ -87,6 +95,29 @@ class RoadCycle:
             "stages": [
                 stage.to_log_record() for stage in self.stages
             ],
+        }
+
+
+@dataclass(frozen=True)
+class RelocationDecision:
+    """A safe-hideout choice plus its gradual-relocation evidence."""
+
+    selection: HideoutSelection
+    mode: str
+    previous_main_junction_distance: object
+    selected_main_junction_distance: object
+    improving_candidate_count: int
+
+    def to_log_fields(self):
+        return {
+            "relocation_mode": self.mode,
+            "previous_main_junction_distance": (
+                self.previous_main_junction_distance
+            ),
+            "selected_main_junction_distance": (
+                self.selected_main_junction_distance
+            ),
+            "improving_candidate_count": self.improving_candidate_count,
         }
 
 
@@ -170,7 +201,7 @@ def build_road_cycle(
     road_visibility,
     ghost_spawn,
     map_shape,
-    stage_turns=20,
+    stage_turns=ROAD_STAGE_TURNS,
 ):
     """Build the connected four-stage cycle for one match."""
 
@@ -195,9 +226,10 @@ def build_road_cycle(
         horizontal,
         vertical,
         side=ghost_side,
+        map_rows=rows,
     )
     reverse_vertical = (
-        ()
+        vertical
         if ghost_horizontal is None
         else tuple(
             record
@@ -215,6 +247,7 @@ def build_road_cycle(
         horizontal,
         reverse_vertical,
         side=opposite_side,
+        map_rows=rows,
     )
 
     if ghost_side == "top":
@@ -295,32 +328,74 @@ def filter_hideout_candidates(
     return eligible, rejected
 
 
-def select_closest_safe_hideout(
+def main_junction_manhattan_distance(
+    position,
+    intersections,
+):
+    """Return distance from a position to its nearest major-road junction."""
+
+    if position is None or not intersections:
+        return None
+    row, column = tuple(position)
+    return min(
+        abs(row - junction[0]) + abs(column - junction[1])
+        for junction in intersections
+    )
+
+
+def select_reachable_component_fallback(
     map_state,
     ghost_position,
-    candidates,
-    compromised,
+    footprints,
+    active_road_excluded_cells,
+    intersections,
+    compromised=(),
+    preferred_position=None,
+    allowed_positions=None,
 ):
-    """Choose the closest reachable safe hideout deterministically."""
+    """Choose a concealed waiting cell when no certified hideout is reachable.
+
+    This does not relax hideout certification. It selects only from Ghost's
+    structural BFS component and excludes every cell visible from the active
+    predicted roads.
+    """
 
     distances, parents = structural_shortest_paths(
         map_state,
         ghost_position,
     )
+    road_excluded = {
+        tuple(position) for position in active_road_excluded_cells
+    }
     compromised_positions = {
         tuple(position) for position in compromised
     }
-    rejections = {"compromised": 0, "unreachable": 0}
-    reachable = []
-    for candidate in candidates:
-        if candidate.position in compromised_positions:
-            rejections["compromised"] += 1
-        elif candidate.position not in distances:
-            rejections["unreachable"] += 1
-        else:
-            reachable.append(candidate)
-
-    if not reachable:
+    allowed = (
+        None
+        if allowed_positions is None
+        else {tuple(position) for position in allowed_positions}
+    )
+    admissible = [
+        position
+        for position in distances
+        if position not in road_excluded
+        and position not in compromised_positions
+        and (allowed is None or position in allowed)
+    ]
+    rejections = {
+        "road_exposed": sum(
+            position in road_excluded for position in distances
+        ),
+        "compromised": sum(
+            position in compromised_positions for position in distances
+        ),
+        "outside_required_band": (
+            0
+            if allowed is None
+            else sum(position not in allowed for position in distances)
+        ),
+    }
+    if not admissible:
         return HideoutSelection(
             candidate=None,
             path=(),
@@ -330,39 +405,218 @@ def select_closest_safe_hideout(
             rejections=rejections,
         )
 
-    selected = max(
-        reachable,
-        key=lambda candidate: (
-            -distances[candidate.position],
-            *hideout_quality_rank(candidate),
-            -candidate.position[0],
-            -candidate.position[1],
-        ),
+    preferred_position = (
+        None
+        if preferred_position is None
+        else tuple(preferred_position)
     )
-    route_distance = distances[selected.position]
-    rank = (
-        -route_distance,
-        *hideout_quality_rank(selected),
-        -selected.position[0],
-        -selected.position[1],
+
+    def rank(position):
+        junction_distance = main_junction_manhattan_distance(
+            position,
+            intersections,
+        )
+        return (
+            -len(footprints.get(position, ())),
+            0 if junction_distance is None else junction_distance,
+            -distances[position],
+            -position[0],
+            -position[1],
+        )
+
+    selected_position = (
+        preferred_position
+        if preferred_position in admissible
+        else max(admissible, key=rank)
+    )
+    selected_rank = rank(selected_position)
+    selected = HideoutCandidate(
+        position=selected_position,
+        kind="reachable_fallback",
+        entrance=None,
+        gate_depth=0,
+        must_backtrack=False,
+        entrance_hidden=False,
+        inspection_depth=0,
+        visibility_footprint=len(
+            footprints.get(selected_position, ())
+        ),
     )
     return HideoutSelection(
         candidate=selected,
-        path=tuple(reconstruct_path(parents, selected.position)),
-        route_distance=route_distance,
-        rank=rank,
-        admitted_count=len(reachable),
+        path=tuple(reconstruct_path(parents, selected_position)),
+        route_distance=distances[selected_position],
+        rank=selected_rank,
+        admitted_count=len(admissible),
         rejections=rejections,
     )
 
 
-def _select_connected_horizontal(horizontal, vertical, side):
+def select_gradual_relocation(
+    map_state,
+    ghost_position,
+    candidates,
+    compromised,
+    intersections,
+    previous_hideout,
+    route_slack=4,
+):
+    """Choose the best nearby hideout that improves junction distance."""
+
+    distances, parents = structural_shortest_paths(
+        map_state,
+        ghost_position,
+    )
+    compromised_positions = {
+        tuple(position) for position in compromised
+    }
+    rejections = {
+        "unsafe": 0,
+        "compromised": 0,
+        "unreachable": 0,
+        "outside_route_window": 0,
+    }
+    reachable = []
+    for candidate in candidates:
+        if not is_strategic_hideout(candidate):
+            rejections["unsafe"] += 1
+        elif candidate.position in compromised_positions:
+            rejections["compromised"] += 1
+        elif candidate.position not in distances:
+            rejections["unreachable"] += 1
+        else:
+            reachable.append(candidate)
+
+    previous_distance = main_junction_manhattan_distance(
+        previous_hideout,
+        intersections,
+    )
+    improving = (
+        []
+        if previous_distance is None
+        else [
+            candidate
+            for candidate in reachable
+            if main_junction_manhattan_distance(
+                candidate.position,
+                intersections,
+            )
+            > previous_distance
+        ]
+    )
+    if improving:
+        nearest_distance = min(
+            distances[candidate.position]
+            for candidate in improving
+        )
+        route_limit = nearest_distance + max(0, int(route_slack))
+        pool = [
+            candidate
+            for candidate in improving
+            if distances[candidate.position] <= route_limit
+        ]
+        rejections["outside_route_window"] = (
+            len(improving) - len(pool)
+        )
+        mode = "junction_improving"
+    else:
+        pool = reachable
+        mode = "closest_safe_fallback"
+
+    if not pool:
+        selection = HideoutSelection(
+            candidate=None,
+            path=(),
+            route_distance=None,
+            rank=(),
+            admitted_count=0,
+            rejections=rejections,
+        )
+        return RelocationDecision(
+            selection=selection,
+            mode=mode,
+            previous_main_junction_distance=previous_distance,
+            selected_main_junction_distance=None,
+            improving_candidate_count=len(improving),
+        )
+
+    if mode == "junction_improving":
+        selected = max(
+            pool,
+            key=lambda candidate: (
+                *hideout_quality_rank(candidate),
+                -distances[candidate.position],
+                -candidate.position[0],
+                -candidate.position[1],
+            ),
+        )
+    else:
+        selected = max(
+            pool,
+            key=lambda candidate: (
+                -distances[candidate.position],
+                *hideout_quality_rank(candidate),
+                -candidate.position[0],
+                -candidate.position[1],
+            ),
+        )
+    route_distance = distances[selected.position]
+    if mode == "junction_improving":
+        rank = (
+            *hideout_quality_rank(selected),
+            -route_distance,
+            -selected.position[0],
+            -selected.position[1],
+        )
+    else:
+        rank = (
+            -route_distance,
+            *hideout_quality_rank(selected),
+            -selected.position[0],
+            -selected.position[1],
+        )
+    selection = HideoutSelection(
+        candidate=selected,
+        path=tuple(reconstruct_path(parents, selected.position)),
+        route_distance=route_distance,
+        rank=rank,
+        admitted_count=len(pool),
+        rejections=rejections,
+    )
+    return RelocationDecision(
+        selection=selection,
+        mode=mode,
+        previous_main_junction_distance=previous_distance,
+        selected_main_junction_distance=(
+            main_junction_manhattan_distance(
+                selected.position,
+                intersections,
+            )
+        ),
+        improving_candidate_count=len(improving),
+    )
+
+
+def _select_connected_horizontal(
+    horizontal,
+    vertical,
+    side,
+    map_rows,
+):
+    midpoint = int(map_rows) / 2.0
     connected = tuple(
         record
         for record in horizontal
-        if any(
-            _roads_intersect(record.road, other.road)
-            for other in vertical
+        if (
+            (
+                record.road.start[0] < midpoint
+                if side == "top"
+                else record.road.start[0] >= midpoint
+            )
+            and any(
+                _roads_intersect(record.road, other.road)
+                for other in vertical
+            )
         )
     )
     if not connected:
@@ -386,6 +640,43 @@ def _select_connected_horizontal(horizontal, vertical, side):
 
 def _roads_intersect(first, second):
     return bool(set(first.cells).intersection(second.cells))
+
+
+def main_road_intersections(roads):
+    """Return cells shared by horizontal and vertical major roads."""
+
+    horizontal_cells = {
+        position
+        for road in roads
+        if road.orientation == "horizontal"
+        for position in road.cells
+    }
+    vertical_cells = {
+        position
+        for road in roads
+        if road.orientation == "vertical"
+        for position in road.cells
+    }
+    return tuple(sorted(horizontal_cells.intersection(vertical_cells)))
+
+
+def active_road_visibility_cells(
+    road_visibility,
+    active_road_ids,
+):
+    """Return the cached visibility union for the active roads."""
+
+    active_ids = {int(road_id) for road_id in active_road_ids}
+    return tuple(
+        sorted(
+            {
+                position
+                for record in road_visibility
+                if record.road.road_id in active_ids
+                for position in record.visible_cells
+            }
+        )
+    )
 
 
 def road_thresholds(map_state):

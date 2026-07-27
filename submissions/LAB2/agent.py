@@ -1053,10 +1053,6 @@ class PacmanAgent(BasePacmanAgent):
                 break
         return steps
 
-
-# ============================================================
-# GhostAgent (unchanged from existing -- kept verbatim)
-# ============================================================
 class GhostAgent(BaseGhostAgent):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
