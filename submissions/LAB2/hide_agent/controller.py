@@ -6,12 +6,12 @@ from time import perf_counter
 from environment import Move
 
 from .belief import PacmanBeliefTracker, choose_belief_hot_move
-from .cross_map import opposite_outer_band, vertical_band
+from .spatial import opposite_outer_band, vertical_band
 from .diagnostics import DIAGNOSTICS_ENABLED, JsonlDiagnostics, MapDiagnostics
-from .escape import choose_visible_junction_escape
-from .geometry import geometry_summary, is_capture
-from .hideout import scan_hideouts, select_hideout, visibility_footprints
-from .migration import (
+from .evasion import choose_visible_junction_escape
+from .spatial import geometry_summary, is_capture
+from .concealment import scan_hideouts, select_hideout, visibility_footprints
+from .relocation import (
     DEEPEN_OPPOSITE,
     MIDDLE_HOLD,
     MIDDLE_HOLD_TURNS,
@@ -27,15 +27,15 @@ from .migration import (
     select_progressive_waypoint,
     select_required_band_rescue,
 )
-from .mobile_escape import choose_visible_mobile_escape
-from .navigation import (
+from .evasion import choose_visible_mobile_escape
+from .spatial import (
     RouteTarget,
     concealment_route,
     route_is_structural,
     route_moves,
 )
-from .pursuit import PursuitTracker
-from .roads import (
+from .belief import PursuitTracker
+from .relocation import (
     active_road_visibility_cells,
     build_road_cycle,
     build_road_visibility,
@@ -47,7 +47,7 @@ from .roads import (
     select_gradual_relocation,
     select_reachable_component_fallback,
 )
-from .topology import scan_campsites
+from .concealment import scan_campsites
 
 
 class HideController:
