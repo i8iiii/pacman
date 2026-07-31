@@ -139,8 +139,8 @@ Input: (21, 19, 24)  [4 frames × 6 channels]
 | Stage | Steps | Obs Radius | Ghost Policies | Description |
 |-------|-------|-----------|----------------|-------------|
 | 1 (Easy) | 0 – 30K | 10 | Random 70%, Greedy 30% | Learn basic approach behavior |
-| 2 (Medium) | 30K – 60K | 5 | Greedy 50%, Random 50% | Reduced vision, smarter ghost |
-| 3 (Hard) | 60K – 100K | 3 | Greedy 70%, Minimax 30% | Realistic conditions |
+| 2 (Medium) | 30K – 60K | 7 | Greedy 50%, Random 50% | Reduced vision, smarter ghost |
+| 3 (Hard) | 60K – 100K | 5 | Greedy 70%, Minimax 30% | Realistic conditions |
 
 ---
 
