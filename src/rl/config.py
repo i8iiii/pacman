@@ -49,7 +49,7 @@ class Config:
 
     # --- Environment ---
     map_height: int = 21
-    map_width: int = 19
+    map_width: int = 21
     max_steps: int = 200
     n_actions: int = 5
     n_channels: int = 6
