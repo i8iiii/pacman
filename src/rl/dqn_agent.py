@@ -1,4 +1,4 @@
-"""DRQN (Deep Recurrent Q-Network) and Double DQN Agent for Pacman Seeker.
+﻿"""DRQN (Deep Recurrent Q-Network) and Double DQN Agent for Pacman Seeker.
 
 Implements a CNN+LSTM architecture for partially observable multi-agent
 Pacman environment. Uses Double DQN with clipped importance-sampling
@@ -142,7 +142,7 @@ class DQNAgent:
         self.sequence_length = config.sequence_length
         self.lstm_hidden_size = 128
         self.train_steps = 0
-        self.device = config.device
+        self.device = torch.device(config.device if torch.cuda.is_available() else "cpu")
 
         # Move networks to device
         self.online_net.to(self.device)
