@@ -831,6 +831,24 @@ class SweepPlanner:
         """Record that a cell has been searched so we never revisit it."""
         self._checked_cells.add(cell)
 
+    @staticmethod
+    def _get_zone(cell: tuple) -> str:
+        """Classify a cell into bottom (15-20), middle (7-14), or top (0-6)."""
+        if cell[0] >= 15:
+            return "bottom"
+        elif cell[0] >= 7:
+            return "middle"
+        else:
+            return "top"
+
+    def _nearest_unchecked(self, pacman_pos: tuple, candidates: list):
+        """Return the nearest candidate not yet checked, or None if all checked."""
+        unchecked = [c for c in candidates if c not in self._checked_cells and c != pacman_pos]
+        if not unchecked:
+            return None
+        unchecked.sort(key=lambda c: _manhattan(pacman_pos, c))
+        return unchecked[0]
+
     def invalidate_path(self):
         """Force replan on next move."""
         self._current_path = None
