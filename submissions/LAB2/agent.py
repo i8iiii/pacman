@@ -1,4 +1,4 @@
-
+﻿
 """
 PacmanAgent: Clean modular rewrite.
 - MapMemory: persistent internal map with cross-match caching
@@ -568,15 +568,10 @@ class SweepPlanner:
         self._ghost_prob = ghost_prob
         self._pf = pathfinder
         self._map_memory = map_memory
-        self._recent_cooldown: list = []
-        self._visit_count: dict = {}
-        self._cooldown_size = 20
+        self._checked_cells: set = set()  # cells already searched — never revisited
         self._current_path: "list | None" = None
         self._current_target: "tuple | None" = None
-        self._patrol_candidates: list = []
-        self._patrol_index = 0
         self._last_pacman_pos: tuple | None = None
-        self._upper_only_steps = 0  # steps spent in upper-half-only mode
 
     def next_move(self, pacman_pos: tuple) -> Move:
         """Return the next move to systematically explore the map.
@@ -631,14 +626,14 @@ class SweepPlanner:
         # Build priority lists per zone (upper-half only, unvisited first)
         zones = {"left": [], "middle": [], "right": []}
         for cell in corners:
-            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+            if cell[0] < mid_row and cell not in self._checked_cells:
                 zones[_zone(cell)].append(("corner", cell))
         for cell in pocket_of:
-            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+            if cell[0] < mid_row and cell not in self._checked_cells:
                 if cell not in corners:
                     zones[_zone(cell)].append(("pocket", cell))
         for cell in dead_ends:
-            if cell[0] < mid_row and cell not in self._recent_cooldown:
+            if cell[0] < mid_row and cell not in self._checked_cells:
                 if cell not in corners and cell not in pocket_of:
                     zones[_zone(cell)].append(("dead_end", cell))
 
@@ -667,7 +662,7 @@ class SweepPlanner:
 
         # Try hardcoded priority spots first (nearest first)
         priority_sorted = sorted(
-            [c for c in _priority_set if c not in self._recent_cooldown and c != pacman_pos],
+            [c for c in _priority_set if c not in self._checked_cells and c != pacman_pos],
             key=lambda c: _manhattan(pacman_pos, c)
         )
         for cell in priority_sorted:
@@ -681,7 +676,7 @@ class SweepPlanner:
             if path:
                 self._current_target = cell
                 self._current_path = list(path)
-                self._add_cooldown(cell)
+                self._mark_checked(cell)
                 return self._current_path.pop(0)
 
         # Determine which zone Pacman is in (or nearest to)
@@ -694,7 +689,7 @@ class SweepPlanner:
             fresh = 0
             for mv in DIRS:
                 nr, nc = r + mv.value[0], c + mv.value[1]
-                if _is_valid((nr, nc), m) and (nr, nc) not in self._recent_cooldown:
+                if _is_valid((nr, nc), m) and (nr, nc) not in self._checked_cells:
                     fresh += 1
             return fresh
 
@@ -716,7 +711,7 @@ class SweepPlanner:
                 if path:
                     self._current_target = cell
                     self._current_path = list(path)
-                    self._add_cooldown(cell)
+                    self._mark_checked(cell)
                     return self._current_path.pop(0)
             return None
 
@@ -731,7 +726,7 @@ class SweepPlanner:
         for cell in candidates:
             if cell[0] >= mid_row:
                 continue
-            if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
+            if cell in self._checked_cells or cell == pacman_pos:
                 continue
             if has_unknown:
                 r, c = cell
@@ -743,11 +738,11 @@ class SweepPlanner:
             if path:
                 self._current_target = cell
                 self._current_path = list(path)
-                self._add_cooldown(cell)
+                self._mark_checked(cell)
                 return self._current_path.pop(0)
 
         # ---- Lower half (only after upper exhausted or timeout) ----
-        upper_exhausted = all(c in self._recent_cooldown or c == pacman_pos
+        upper_exhausted = all(c in self._checked_cells or c == pacman_pos
                               for c in candidates if c[0] < mid_row)
         if upper_exhausted:
             self._upper_only_steps = 0
@@ -758,7 +753,7 @@ class SweepPlanner:
             for cell in candidates:
                 if cell[0] < mid_row:
                     continue
-                if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
+                if cell in self._checked_cells or cell == pacman_pos:
                     continue
                 if has_unknown:
                     r, c = cell
@@ -770,7 +765,7 @@ class SweepPlanner:
                 if path:
                     self._current_target = cell
                     self._current_path = list(path)
-                    self._add_cooldown(cell)
+                    self._mark_checked(cell)
                     return self._current_path.pop(0)
 
         # Absolute fallback
@@ -797,7 +792,7 @@ class SweepPlanner:
                 )
                 if not borders:
                     continue
-                if (r, c) in self._recent_cooldown:
+                if (r, c) in self._checked_cells:
                     continue
 
                 d = _manhattan(pacman_pos, (r, c))
@@ -825,18 +820,16 @@ class SweepPlanner:
             path = self._pf.astar(pacman_pos, cell)
             if path:
                 self._current_path = list(path)
-                self._add_cooldown(cell)
+                self._mark_checked(cell)
                 return self._current_path.pop(0)
 
         valid = [mv for mv in DIRS
                  if _is_valid((pacman_pos[0] + mv.value[0], pacman_pos[1] + mv.value[1]), m)]
         return random.choice(valid) if valid else Move.STAY
 
-    def _add_cooldown(self, cell: tuple):
-        self._recent_cooldown.append(cell)
-        if len(self._recent_cooldown) > self._cooldown_size:
-            self._recent_cooldown.pop(0)
-        self._visit_count[cell] = self._visit_count.get(cell, 0) + 1
+    def _mark_checked(self, cell: tuple):
+        """Record that a cell has been searched so we never revisit it."""
+        self._checked_cells.add(cell)
 
     def invalidate_path(self):
         """Force replan on next move."""
