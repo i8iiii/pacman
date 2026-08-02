@@ -84,9 +84,10 @@ class Config:
 
     # --- Curriculum stages ---
     curriculum_stages: Tuple[Tuple[int, Dict[str, float]], ...] = (
-        (10, {"random": 0.7, "greedy": 0.3, "minimax": 0.0}),
-        (7, {"random": 0.5, "greedy": 0.5, "minimax": 0.0}),
-        (5, {"random": 0.0, "greedy": 0.7, "minimax": 0.3}),
+        (10, {"random": 0.40, "greedy": 0.25, "parkour": 0.15, "superghost": 0.10, "minimax": 0.05, "hide_controller": 0.05}),
+        (7,  {"random": 0.25, "greedy": 0.15, "parkour": 0.20, "superghost": 0.15, "minimax": 0.15, "hide_controller": 0.10}),
+        (5,  {"random": 0.10, "greedy": 0.10, "parkour": 0.20, "superghost": 0.25, "minimax": 0.20, "hide_controller": 0.15}),
+        (5,  {"random": 0.05, "greedy": 0.05, "parkour": 0.20, "superghost": 0.30, "minimax": 0.20, "hide_controller": 0.20}),
     )
 
     # --- Reward weights ---
@@ -98,4 +99,12 @@ class Config:
     reward_regained_sight: float = 0.3
 
     # --- Device ---
-    device: str = "cpu"
+    device: str = "cuda"
+
+
+
+
+
+
+
+
