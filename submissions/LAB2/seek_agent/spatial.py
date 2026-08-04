@@ -1,6 +1,7 @@
 """Shared spatial operations for seek-agent modules."""
 
 from collections import deque
+from heapq import heappop, heappush
 
 from environment import Move
 
@@ -74,6 +75,136 @@ def shortest_path(topology, start, goal):
     return None
 
 
+def minimum_turn_path(
+    topology,
+    start,
+    goal,
+    pacman_speed=2,
+    allowed_cells=None,
+):
+    """Find a legal path which minimises Pacman game turns.
+
+    A turn may travel one to ``pacman_speed`` consecutive cells in one
+    cardinal direction.  The returned result remains cell-by-cell so it can
+    be inspected for visibility and later converted back into game actions.
+    ``allowed_cells`` limits *every* visited cell, including both endpoints.
+    """
+    start = normalize_position(start)
+    goal = normalize_position(goal)
+    speed = _normalise_speed(pacman_speed)
+    allowed = None
+    if allowed_cells is not None:
+        allowed = frozenset(normalize_position(cell) for cell in allowed_cells)
+
+    if not _permitted_cell(topology, start, allowed):
+        return None
+    if not _permitted_cell(topology, goal, allowed):
+        return None
+    if start == goal:
+        return [start]
+
+    # Priority is game turns, then moved cells, then a stable cell/action
+    # spelling.  Keeping the full spelling in the label makes ties independent
+    # of heap insertion order.
+    start_path = (start,)
+    frontier = [(0, 0, start_path, (), start)]
+    best = {start: (0, 0, start_path, ())}
+
+    while frontier:
+        turns, cell_steps, cells, actions, current = heappop(frontier)
+        label = (turns, cell_steps, cells, actions)
+        if best.get(current) != label:
+            continue
+        if current == goal:
+            return list(cells)
+
+        for move_index, move in enumerate(CARDINAL_MOVES):
+            segment = []
+            position = current
+            for step_count in range(1, speed + 1):
+                position = apply_move(position, move)
+                if not _permitted_cell(topology, position, allowed):
+                    break
+                segment.append(position)
+                candidate_cells = cells + tuple(segment)
+                candidate_actions = actions + ((move_index, step_count),)
+                candidate = (
+                    turns + 1,
+                    cell_steps + step_count,
+                    candidate_cells,
+                    candidate_actions,
+                )
+                previous = best.get(position)
+                if previous is not None and previous <= candidate:
+                    continue
+                best[position] = candidate
+                heappush(frontier, candidate + (position,))
+
+    return None
+
+
+def path_to_actions(path, pacman_speed=2):
+    """Compact a cell-by-cell path into legal ``(Move, steps)`` actions."""
+    if path is None:
+        raise ValueError("Path must be an iterable of cells, not None")
+    cells = tuple(normalize_position(cell) for cell in path)
+    if len(cells) < 2:
+        return ()
+
+    speed = _normalise_speed(pacman_speed)
+    actions = []
+    index = 0
+    while index < len(cells) - 1:
+        move = move_for_delta(movement_delta(cells[index], cells[index + 1]))
+        run_length = 1
+        while (
+            index + run_length < len(cells) - 1
+            and movement_delta(
+                cells[index + run_length],
+                cells[index + run_length + 1],
+            )
+            == move.value
+        ):
+            run_length += 1
+
+        remaining = run_length
+        while remaining:
+            action_steps = min(speed, remaining)
+            actions.append((move, action_steps))
+            remaining -= action_steps
+        index += run_length
+
+    return tuple(actions)
+
+
+def count_path_turns(path, pacman_speed=2):
+    """Return the number of game actions required to follow ``path``."""
+    return len(path_to_actions(path, pacman_speed))
+
+
+def concatenate_paths(*paths):
+    """Join cell paths without repeating a common boundary cell."""
+    combined = []
+    for path in paths:
+        if path is None:
+            raise ValueError("Cannot concatenate a missing path")
+        cells = [normalize_position(cell) for cell in path]
+        if not cells:
+            continue
+        if combined and combined[-1] == cells[0]:
+            cells = cells[1:]
+        combined.extend(cells)
+    return combined
+
+
+def visible_cells_for_path(topology, path, radius=5):
+    """Simulate cross visibility at every cell visited by ``path``."""
+    visible = set()
+    for cell in path:
+        visible.update(visibility_footprint(topology, normalize_position(cell), radius))
+    return frozenset(visible)
+
+
 def visibility_footprint(topology, position, radius=5):
     """Return traversable cells visible on four wall-blocked cardinal rays."""
     if not is_traversable(topology, position):
@@ -100,3 +231,16 @@ def _reconstruct_path(parents, goal):
         current = parents[current]
     path.reverse()
     return path
+
+
+def _normalise_speed(pacman_speed):
+    try:
+        return max(1, int(pacman_speed))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("pacman_speed must be a positive integer") from exc
+
+
+def _permitted_cell(topology, position, allowed_cells):
+    return is_traversable(topology, position) and (
+        allowed_cells is None or position in allowed_cells
+    )
