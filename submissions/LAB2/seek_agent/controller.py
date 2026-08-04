@@ -46,7 +46,7 @@ class SeekController:
     def step(self, map_state, my_position, enemy_position, step_number):
         started_at = perf_counter()
         previous_mode = self.mode
-        transition_reason = None
+        transition_reasons = []
         target = None
         path = None
         error = None
@@ -64,14 +64,13 @@ class SeekController:
                 and step_number < self._last_step_number
             ):
                 self._reset_match_state()
-                previous_mode = self.mode
-                transition_reason = "new_match"
+                transition_reasons.append("new_match")
 
             self._last_step_number = step_number
 
             if enemy_position is not None:
                 if self.mode != SeekMode.CHASING:
-                    transition_reason = "ghost_visible"
+                    transition_reasons.append("ghost_visible")
                 self.mode = SeekMode.CHASING
                 self.last_seen_position = enemy_position
                 self.last_seen_step = step_number
@@ -80,14 +79,14 @@ class SeekController:
                 move, move_steps = self._action_from_path(path)
             elif self.last_seen_position is not None:
                 if self.mode != SeekMode.INVESTIGATING:
-                    transition_reason = "ghost_lost"
+                    transition_reasons.append("ghost_lost")
                 self.mode = SeekMode.INVESTIGATING
                 target = self.last_seen_position
                 path = _shortest_path(topology, my_position, target)
                 move, move_steps = self._action_from_path(path)
             else:
                 if self.mode != SeekMode.SEARCHING:
-                    transition_reason = "no_ghost_information"
+                    transition_reasons.append("no_ghost_information")
                 self.mode = SeekMode.SEARCHING
                 move, move_steps, path = self._random_search_action(
                     topology,
@@ -108,7 +107,7 @@ class SeekController:
             step_number=step_number,
             mode=self.mode,
             previous_mode=previous_mode,
-            transition_reason=transition_reason,
+            transition_reasons=transition_reasons,
             map_state=observation,
             topology=topology,
             my_position=my_position,
