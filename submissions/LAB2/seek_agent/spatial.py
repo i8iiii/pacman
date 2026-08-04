@@ -197,12 +197,47 @@ def concatenate_paths(*paths):
     return combined
 
 
-def visible_cells_for_path(topology, path, radius=5):
-    """Simulate cross visibility at every cell visited by ``path``."""
+def visible_cells_for_actions(topology, path, actions, radius=5):
+    """Simulate visibility at the initial cell and each action endpoint.
+
+    Pacman observes before its first action and after each game action.  A
+    two-cell action therefore does not create a separate observation from its
+    intermediate crossed cell.
+    """
+    cells = tuple(normalize_position(cell) for cell in path)
+    if not cells:
+        return frozenset()
+
+    observation_indices = [0]
+    index = 0
+    for _, steps in actions:
+        try:
+            steps = int(steps)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Action steps must be positive integers") from exc
+        if steps < 1:
+            raise ValueError("Action steps must be positive integers")
+        index += steps
+        if index >= len(cells):
+            raise ValueError("Actions extend beyond the supplied path")
+        observation_indices.append(index)
+    if index != len(cells) - 1:
+        raise ValueError("Actions do not cover the supplied path")
+
     visible = set()
-    for cell in path:
-        visible.update(visibility_footprint(topology, normalize_position(cell), radius))
+    for index in observation_indices:
+        visible.update(visibility_footprint(topology, cells[index], radius))
     return frozenset(visible)
+
+
+def visible_cells_for_path(topology, path, pacman_speed=2, radius=5):
+    """Simulate path visibility at initial and action-endpoint positions."""
+    return visible_cells_for_actions(
+        topology,
+        path,
+        path_to_actions(path, pacman_speed),
+        radius,
+    )
 
 
 def visibility_footprint(topology, position, radius=5):

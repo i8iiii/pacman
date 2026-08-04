@@ -10,7 +10,7 @@ from .spatial import (
     minimum_turn_path,
     normalize_position,
     path_to_actions,
-    visible_cells_for_path,
+    visible_cells_for_actions,
 )
 
 
@@ -45,10 +45,9 @@ def plan_area_route(
     route to win when a viewpoint is redundant, while retaining deterministic
     tie breaking for routes with equal game-turn cost.
 
-    ``deadline`` accepts either an absolute ``perf_counter`` deadline or a
-    positive duration in seconds.  On expiry the best already-evaluated route
-    is returned; an immediately expired deadline still produces the safe
-    one-cell fallback at ``entry``.
+    ``deadline`` is an absolute ``perf_counter`` deadline.  On expiry the
+    best already-evaluated route is returned; an already expired deadline
+    produces the safe one-cell fallback at ``entry``.
     """
     entry = normalize_position(entry)
     area_cells = frozenset(normalize_position(cell) for cell in area.cells)
@@ -153,7 +152,7 @@ def _route_result(
     pacman_speed,
 ):
     actions = path_to_actions(cells, pacman_speed)
-    visible = visible_cells_for_path(topology, cells)
+    visible = visible_cells_for_actions(topology, cells, actions)
     covered = frozenset(required & visible)
     return RouteResult(
         cells=tuple(cells),
@@ -212,11 +211,9 @@ def _resolve_deadline(deadline):
     if deadline is None:
         return None
     try:
-        deadline = float(deadline)
+        return float(deadline)
     except (TypeError, ValueError) as exc:
-        raise ValueError("deadline must be seconds or a perf_counter deadline") from exc
-    started = perf_counter()
-    return deadline if deadline >= started else started + max(0.0, deadline)
+        raise ValueError("deadline must be an absolute perf_counter value") from exc
 
 
 def _deadline_expired(deadline):
