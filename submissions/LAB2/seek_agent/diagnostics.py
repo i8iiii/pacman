@@ -143,6 +143,9 @@ class SeekDiagnostics:
         area_cache_hit=False,
         current_area_id=None,
         target_area_id=None,
+        visible_cells=(),
+        ghost_belief=None,
+        search_decision=None,
         error=None,
     ):
         if not self.enabled:
@@ -151,6 +154,10 @@ class SeekDiagnostics:
         try:
             observation = np.asarray(map_state)
             topology_array = np.asarray(topology, dtype=np.int8)
+            visible_cells = tuple(sorted(_position(cell) for cell in visible_cells))
+            visible_mask = np.zeros(observation.shape, dtype=np.int8)
+            for row, column in visible_cells:
+                visible_mask[row, column] = 1
             record = {
                 "step": int(step_number),
                 "mode": mode.value,
@@ -181,8 +188,15 @@ class SeekDiagnostics:
                 "current_area_id": current_area_id,
                 "target_area_id": target_area_id,
                 "observation": observation.tolist(),
-                "visible_mask": (observation == 0).astype(np.int8).tolist(),
+                "visible_mask": visible_mask.tolist(),
+                "visible_cells": [list(cell) for cell in visible_cells],
                 "topology": topology_array.tolist(),
+                "ghost_belief": _belief_summary(
+                    ghost_belief,
+                    area_analysis,
+                    step_number,
+                ),
+                "search": _search_summary(search_decision),
                 "error": error,
             }
             with self.log_path.open("a", encoding="utf-8") as log_file:
@@ -196,6 +210,103 @@ def _position(value):
     if value is None:
         return None
     return [int(value[0]), int(value[1])]
+
+
+def _belief_summary(belief, area_analysis, step_number):
+    """Return a JSON-ready snapshot without making diagnostics authoritative."""
+    if belief is None:
+        return None
+
+    possible = tuple(belief.sorted_possible_positions())
+    summary = {
+        "possible_count": len(possible),
+        "possible_cells": [_position(cell) for cell in possible],
+        "areas": [],
+    }
+    if area_analysis is None:
+        return summary
+
+    for area in area_analysis.areas:
+        cells = tuple(sorted(area.cells))
+        possible_cells = tuple(belief.possible_positions_in_area(area))
+        never_observed = tuple(belief.never_observed_in_area(area))
+        ages = [
+            belief.last_observed_age(cell, step_number)
+            for cell in cells
+        ]
+        known_ages = [age for age in ages if age is not None]
+        summary["areas"].append({
+            "area_id": area.area_id,
+            "risk": float(belief.risk_fraction_for_area(area)),
+            "possible_count": len(possible_cells),
+            "possible_cells": [_position(cell) for cell in possible_cells],
+            "never_observed_count": len(never_observed),
+            "never_observed_cells": [_position(cell) for cell in never_observed],
+            "fresh_count": sum(age == 0 for age in known_ages),
+            "stale_count": sum(age > 0 for age in known_ages),
+            "oldest_observation_age": (
+                None if not known_ages else max(known_ages)
+            ),
+        })
+    return summary
+
+
+def _search_summary(decision):
+    """Make the absence of a Search action explicit for chase/investigate."""
+    if decision is None:
+        return {
+            "decision_made": False,
+            "phase": None,
+            "current_area_id": None,
+            "target_area_id": None,
+            "planned_area_order": [],
+            "entry": None,
+            "exit": None,
+            "route": [],
+            "actions": [],
+            "chosen_action": None,
+            "required_cells": [],
+            "required_count": 0,
+            "covered_cells": [],
+            "covered_count": 0,
+            "completed_this_step": None,
+            "completed_area_ids": [],
+            "replan_reason": None,
+            "planning_seconds": None,
+            "exact": None,
+            "fallback": None,
+            "fallback_meaning": "global_priority_fallback",
+        }
+
+    return {
+        "decision_made": True,
+        "phase": decision.phase.value,
+        "current_area_id": decision.current_area_id,
+        "target_area_id": decision.target_area_id,
+        "planned_area_order": list(decision.planned_area_order),
+        "entry": _position(decision.entry),
+        "exit": _position(decision.exit),
+        "route": [_position(cell) for cell in decision.route],
+        "actions": [
+            {"move": move.name, "steps": int(steps)}
+            for move, steps in decision.actions
+        ],
+        "chosen_action": {
+            "move": decision.chosen_action[0].name,
+            "steps": int(decision.chosen_action[1]),
+        },
+        "required_cells": [_position(cell) for cell in sorted(decision.required_cells)],
+        "required_count": len(decision.required_cells),
+        "covered_cells": [_position(cell) for cell in sorted(decision.covered_cells)],
+        "covered_count": len(decision.covered_cells),
+        "completed_this_step": decision.completed_this_step,
+        "completed_area_ids": sorted(decision.completed_area_ids),
+        "replan_reason": decision.replan_reason,
+        "planning_seconds": float(decision.planning_seconds),
+        "exact": bool(decision.exact),
+        "fallback": bool(decision.fallback),
+        "fallback_meaning": "global_priority_fallback",
+    }
 
 
 def _area_symbol(area_id):
