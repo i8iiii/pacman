@@ -7,9 +7,9 @@ from environment import Move
 
 
 class GhostAgent(BaseGhostAgent):
-    """Follow a shortest route to ``(9, 10)`` and remain there."""
+    """Follow a shortest route to the ``(10, 9)`` dead end and remain there."""
 
-    TARGET = (9, 10)
+    TARGET = (10, 9)
     _MOVES = (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT)
 
     def __init__(self, **kwargs):
