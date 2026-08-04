@@ -437,8 +437,14 @@ class SearchPlanner:
         self._route_action_index = 0
         self._local_route_fallback = not route.complete
         if not route.complete:
+            # The arrival observation may already satisfy part of the
+            # snapshot.  A safety route must aim only at remaining work, not
+            # waste a turn selecting the current cell as a completed goal.
+            outstanding = self.required_cells - self._covered_required(
+                belief, visible, step_number,
+            )
             self._set_safe_required_route(
-                topology, area, position, self.required_cells,
+                topology, area, position, outstanding,
             )
         self.phase = SearchPhase.SWEEP_ACTIVE_AREA
 
