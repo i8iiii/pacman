@@ -18,6 +18,7 @@ from .spatial import (
     minimum_turn_path,
     normalize_position,
     path_to_actions,
+    reachable_component,
     traversable_neighbors,
 )
 
@@ -44,6 +45,8 @@ class SearchDecision:
     current_area_id: int | None
     target_area_id: int | None
     planned_area_order: tuple
+    reachable_area_ids: tuple
+    excluded_area_ids: tuple
     entry: tuple | None
     exit: tuple | None
     cells: tuple
@@ -102,6 +105,9 @@ class SearchPlanner:
         self.phase = SearchPhase.SELECT_PRIORITY
         self.target_area_id = None
         self.planned_area_order = ()
+        self._reachable_area_ids = ()
+        self._excluded_area_ids = ()
+        self._unroutable_area_ids = set()
         self.entry = None
         self.exit = None
         self.completed_area_ids = set()
@@ -115,7 +121,7 @@ class SearchPlanner:
         self._last_replan_reason = "new_match"
 
     def decide(self, topology, analysis, belief, position, visible_cells=(),
-               step_number=0):
+               step_number=0, reachable_cells=None):
         """Return the next deterministic Search decision.
 
         ``belief`` must already have been updated with this turn's visible
@@ -130,6 +136,9 @@ class SearchPlanner:
         visible = frozenset(normalize_position(cell) for cell in visible_cells)
         step_number = int(step_number)
         self._ensure_topology(analysis)
+        if reachable_cells is None:
+            reachable_cells = reachable_component(topology, position)
+        self._set_reachability(analysis, reachable_cells)
         current_area = analysis.area_for(position)
 
         if current_area is None or not analysis.areas:
@@ -146,10 +155,12 @@ class SearchPlanner:
 
         if self.phase == SearchPhase.SELECT_PRIORITY or self.target_area_id is None:
             replan_reason = self._last_replan_reason or "select_priority"
-            exact, fallback = self._select_priority(
+            exact, fallback, selection_reason = self._select_priority(
                 topology, analysis, belief, position, visible, step_number,
                 deadline,
             )
+            if selection_reason is not None:
+                replan_reason = selection_reason
 
         if self.target_area_id is None:
             return self._fallback_decision(
@@ -174,11 +185,11 @@ class SearchPlanner:
                 # Replan immediately: SEARCHING should not waste a turn at a
                 # completed area merely to expose an internal transition.
                 self._clear_active_area()
-                exact, fallback = self._select_priority(
+                exact, fallback, selection_reason = self._select_priority(
                     topology, analysis, belief, position, visible, step_number,
                     deadline,
                 )
-                replan_reason = "area_complete"
+                replan_reason = selection_reason or "area_complete"
                 current_area = analysis.area_for(position)
                 if self.target_area_id is not None and current_area == self.target_area_id:
                     self.entry = position
@@ -212,6 +223,8 @@ class SearchPlanner:
             current_area_id=current_area,
             target_area_id=self.target_area_id,
             planned_area_order=self.planned_area_order,
+            reachable_area_ids=self._reachable_area_ids,
+            excluded_area_ids=self._excluded_area_ids,
             entry=self.entry,
             exit=self.exit,
             cells=tuple(cells),
@@ -236,19 +249,49 @@ class SearchPlanner:
             self.reset(analysis)
         self._analysis = analysis
 
-    def _select_priority(self, topology, analysis, belief, position, visible,
-                         step_number, deadline):
-        remaining = tuple(
+    def _set_reachability(self, analysis, reachable_cells):
+        """Classify analysis areas against Pacman's current component."""
+        component = frozenset(
+            normalize_position(cell) for cell in reachable_cells
+        )
+        reachable_ids = tuple(
             area.area_id
             for area in analysis.areas
-            if area.area_id not in self.completed_area_ids
+            if any(normalize_position(cell) in component for cell in area.cells)
+        )
+        self._reachable_area_ids = tuple(sorted(reachable_ids))
+        reachable_set = frozenset(self._reachable_area_ids)
+        self._excluded_area_ids = tuple(
+            area.area_id
+            for area in analysis.areas
+            if area.area_id not in reachable_set
+        )
+
+    def _select_priority(self, topology, analysis, belief, position, visible,
+                         step_number, deadline):
+        coverage_circuit_reset = False
+        searchable_ids = tuple(
+            area_id for area_id in self._reachable_area_ids
+            if area_id not in self._unroutable_area_ids
+        )
+        remaining = tuple(
+            area_id for area_id in searchable_ids
+            if area_id not in self.completed_area_ids
         )
         if not remaining:
             # Areas can become required again as their observations age.  Start
             # a fresh coverage circuit, retaining no accidental transit state.
-            self.completed_area_ids.clear()
-            remaining = tuple(area.area_id for area in analysis.areas)
+            # Excluded areas must never return merely because they have not
+            # been observed.
+            self.completed_area_ids.difference_update(self._reachable_area_ids)
+            remaining = searchable_ids
             self._last_replan_reason = "coverage_circuit_complete"
+            coverage_circuit_reset = True
+            if not remaining:
+                self.target_area_id = None
+                self.planned_area_order = ()
+                self.entry = None
+                return False, True, "no_reachable_area"
 
         # Reserve a small, hard portion of the turn budget for the local route
         # that may begin immediately when Pacman already occupies the target.
@@ -262,13 +305,31 @@ class SearchPlanner:
         )
         if not order:
             self.target_area_id = None
-            return exact, True
+            self.planned_area_order = ()
+            return exact, True, "no_reachable_area"
 
-        self.target_area_id = order[0]
-        self.planned_area_order = order
-        self.entry = self._best_entry_path(
-            topology, analysis, position, self.target_area_id,
-        )[1]
+        skipped_unreachable_target = False
+        for order_index, area_id in enumerate(order):
+            path, entry = self._best_entry_path(
+                topology, analysis, position, area_id,
+            )
+            if path is None or entry is None:
+                self._unroutable_area_ids.add(area_id)
+                skipped_unreachable_target = True
+                continue
+            self.target_area_id = area_id
+            self.planned_area_order = tuple(
+                candidate for candidate in order[order_index:]
+                if candidate not in self._unroutable_area_ids
+            )
+            self.entry = entry
+            break
+        else:
+            self.target_area_id = None
+            self.planned_area_order = ()
+            self.entry = None
+            return exact, True, "no_reachable_area"
+
         self.exit = None
         self.required_cells = frozenset()
         self._snapshot_step = None
@@ -278,7 +339,17 @@ class SearchPlanner:
         self._route_action_index = 0
         self._local_route_fallback = False
         self.phase = SearchPhase.TRANSIT_TO_AREA
-        return exact, fallback
+        return (
+            exact,
+            fallback or skipped_unreachable_target,
+            (
+                "unreachable_target_skipped"
+                if skipped_unreachable_target
+                else "coverage_circuit_complete"
+                if coverage_circuit_reset
+                else None
+            ),
+        )
 
     def _global_order(self, topology, analysis, belief, position, visible,
                       step_number, remaining, deadline):
@@ -693,6 +764,8 @@ class SearchPlanner:
             current_area_id=current_area,
             target_area_id=self.target_area_id,
             planned_area_order=self.planned_area_order,
+            reachable_area_ids=self._reachable_area_ids,
+            excluded_area_ids=self._excluded_area_ids,
             entry=self.entry,
             exit=self.exit,
             cells=(position,),

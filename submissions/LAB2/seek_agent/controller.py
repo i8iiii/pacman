@@ -143,6 +143,7 @@ class SeekController:
                     my_position,
                     visible_cells=visible_cells,
                     step_number=step_number,
+                    reachable_cells=self.reachable_component,
                 )
                 target = search_decision.entry
                 path = list(search_decision.route)
