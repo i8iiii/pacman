@@ -123,9 +123,6 @@ class Environment:
         ]
         """
         
-
-
-
         pacman_start = None
         ghost_start = None
         map_array = np.zeros((len(layout), len(layout[0])), dtype=int)

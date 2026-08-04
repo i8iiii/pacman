@@ -9,4 +9,4 @@ minizinc
 pandas
 scikit-learn
 scipy
-pandastorch>=2.0.0
+pandas
