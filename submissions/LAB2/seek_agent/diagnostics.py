@@ -1,6 +1,5 @@
 """Optional structured diagnostics for the seek agent."""
 
-from collections import deque
 import json
 import os
 from pathlib import Path
@@ -73,6 +72,7 @@ class SeekDiagnostics:
         step_number=None,
         target_area_id=None,
         my_position=None,
+        freshness=None,
     ):
         """Write the human-readable map areas and live scouting freshness."""
         if not self.enabled or analysis is None:
@@ -88,10 +88,10 @@ class SeekDiagnostics:
                 area.area_id: _area_symbol(area.area_id)
                 for area in analysis.areas
             }
-            fresh_cells = _fresh_observed_cells(
-                observation,
-                ghost_belief,
-                step_number,
+            fresh_cells = (
+                frozenset()
+                if freshness is None or ghost_belief is None
+                else freshness.fresh_cells(ghost_belief)
             )
             lines = [
                 "SEEK AGENT AREA MAP",
@@ -105,6 +105,10 @@ class SeekDiagnostics:
                 f"reachable_cell_count: {reachability['reachable_cell_count']}",
                 f"reachable_area_ids: {reachability['reachable_area_ids']}",
                 f"excluded_area_ids: {reachability['excluded_area_ids']}",
+                (
+                    "expiration_priority_area_ids: "
+                    f"{list(freshness.priority_area_ids) if freshness else []}"
+                ),
                 f"fresh_observed_cells: {len(fresh_cells)}",
                 "",
                 (
@@ -133,6 +137,22 @@ class SeekDiagnostics:
                             f"{area.position_label}"
                         ),
                         f"  cells: {len(area.cells)}",
+                        (
+                            "  possible_ghost_cells: "
+                            f"{freshness.area_belief_counts.get(area.area_id, 0) if freshness else 0}"
+                        ),
+                        (
+                            "  expiration_priority: "
+                            f"{'yes' if freshness and area.area_id in freshness.priority_area_ids else 'no'}"
+                        ),
+                        (
+                            "  expiration_area_hops: "
+                            f"{freshness.area_distances.get(area.area_id, 'unreachable') if freshness else 'unknown'}"
+                        ),
+                        (
+                            "  expiration_turns: "
+                            f"{freshness.expiration_turns.get(area.area_id, 'unknown') if freshness else 'unknown'}"
+                        ),
                         (
                             "  reachable_from_spawn: "
                             f"{'yes' if area.area_id in reachability['reachable_area_ids'] else 'no'}"
@@ -187,6 +207,7 @@ class SeekDiagnostics:
         visible_cells=(),
         reachable_cells=(),
         ghost_belief=None,
+        freshness=None,
         search_decision=None,
         investigation_decision=None,
         error=None,
@@ -245,6 +266,7 @@ class SeekDiagnostics:
                     step_number,
                     reachable_cells,
                 ),
+                "freshness": _freshness_summary(freshness, ghost_belief),
                 "search": _search_summary(search_decision),
                 "investigation": _investigation_summary(
                     investigation_decision,
@@ -262,6 +284,7 @@ class SeekDiagnostics:
                 step_number=step_number,
                 target_area_id=target_area_id,
                 my_position=my_position,
+                freshness=freshness,
             )
         except Exception:
             # Diagnostics must never alter or terminate the agent's decisions.
@@ -567,56 +590,38 @@ def _area_symbol(area_id):
     return alphabet[area_id]
 
 
-def _fresh_observed_cells(observation, belief, step_number):
-    """Mirror SEARCHING's expiration rule without changing agent state."""
-    if belief is None or step_number is None:
-        return frozenset()
-
-    rows, columns = observation.shape
-    possible = {
-        (int(cell[0]), int(cell[1]))
-        for cell in belief.possible_positions
+def _freshness_summary(freshness, belief):
+    if freshness is None:
+        return {
+            "priority_area_ids": [],
+            "areas": [],
+            "fresh_cells": [],
+            "expired_cells": [],
+        }
+    fresh_cells = (
+        frozenset()
+        if belief is None
+        else freshness.fresh_cells(belief)
+    )
+    return {
+        "priority_area_ids": list(freshness.priority_area_ids),
+        "areas": [
+            {
+                "area_id": area_id,
+                "possible_ghost_cells": freshness.area_belief_counts.get(
+                    area_id,
+                    0,
+                ),
+                "area_hops": freshness.area_distances.get(area_id),
+                "expiration_turns": freshness.expiration_turns.get(area_id),
+            }
+            for area_id in sorted(freshness.expiration_turns)
+        ],
+        "fresh_cells": [list(cell) for cell in sorted(fresh_cells)],
+        "expired_cells": [
+            list(cell) for cell in sorted(freshness.expired_cells)
+        ],
     }
-    distances = {cell: 0 for cell in possible}
-    frontier = deque(sorted(distances))
-    while frontier:
-        row, column = frontier.popleft()
-        for candidate in (
-            (row - 1, column),
-            (row + 1, column),
-            (row, column - 1),
-            (row, column + 1),
-        ):
-            candidate_row, candidate_column = candidate
-            if (
-                candidate in distances
-                or candidate_row < 0
-                or candidate_row >= rows
-                or candidate_column < 0
-                or candidate_column >= columns
-                or observation[candidate] == 1
-            ):
-                continue
-            distances[candidate] = distances[(row, column)] + 1
-            frontier.append(candidate)
-
-    current_step = int(step_number)
-    fresh = set()
-    for cell, observed_at in belief.last_observed_step.items():
-        position = int(cell[0]), int(cell[1])
-        row, column = position
-        if (
-            row < 0
-            or row >= rows
-            or column < 0
-            or column >= columns
-            or observation[position] == 1
-        ):
-            continue
-        age = max(0, current_step - int(observed_at))
-        if age < distances.get(position, float("inf")):
-            fresh.add(position)
-    return frozenset(fresh)
 
 
 def _render_area_grid(

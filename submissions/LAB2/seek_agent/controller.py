@@ -10,6 +10,7 @@ from environment import Move
 from .areas import AreaAnalyzer
 from .belief import GhostBelief
 from .diagnostics import SeekDiagnostics
+from .freshness import AreaFreshnessTracker
 from .investigation import InvestigationPlanner
 from .search import SearchPlanner
 from .spatial import (
@@ -52,6 +53,7 @@ class SeekController:
         self._last_step_number = None
         self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
+        self.freshness = AreaFreshnessTracker()
         self.investigation_planner = InvestigationPlanner(
             pacman_speed=self.pacman_speed,
         )
@@ -65,6 +67,7 @@ class SeekController:
         self.last_seen_step = None
         self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
+        self.freshness.reset()
         self.investigation_planner.reset()
         self.search_planner.reset(analysis)
 
@@ -119,6 +122,12 @@ class SeekController:
                 observation,
                 visible_cells,
                 enemy_position,
+                step_number,
+            )
+            self.freshness.update(
+                self.area_analysis,
+                self.ghost_belief,
+                visible_cells,
                 step_number,
             )
 
@@ -221,6 +230,7 @@ class SeekController:
             visible_cells=visible_cells,
             reachable_cells=self.reachable_component,
             ghost_belief=self.ghost_belief,
+            freshness=self.freshness,
             search_decision=search_decision,
             investigation_decision=investigation_decision,
             error=error,
@@ -283,4 +293,5 @@ class SeekController:
             visible_cells=visible_cells,
             step_number=step_number,
             reachable_cells=self.reachable_component,
+            freshness=self.freshness,
         )

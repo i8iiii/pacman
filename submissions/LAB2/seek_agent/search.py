@@ -5,13 +5,13 @@ interrupt it for chasing or investigating, while retaining this state for a
 later return to searching.
 """
 
-from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from time import perf_counter
 
 from environment import Move
 
+from .freshness import AreaFreshnessTracker
 from .routes import plan_area_route
 from .spatial import (
     count_path_turns,
@@ -19,7 +19,6 @@ from .spatial import (
     normalize_position,
     path_to_actions,
     reachable_component,
-    traversable_neighbors,
 )
 
 
@@ -142,6 +141,7 @@ class SearchPlanner:
         self._local_route_fallback = False
         self._last_replan_reason = "new_match"
         self._opportunity_rejections = {}
+        self._freshness = AreaFreshnessTracker()
         self._reset_opportunity_report()
 
     def interrupt(self, reason="behavior_interrupted"):
@@ -150,7 +150,7 @@ class SearchPlanner:
         self._last_replan_reason = str(reason)
 
     def decide(self, topology, analysis, belief, position, visible_cells=(),
-               step_number=0, reachable_cells=None):
+               step_number=0, reachable_cells=None, freshness=None):
         """Return the next deterministic Search decision.
 
         ``belief`` must already have been updated with this turn's visible
@@ -165,6 +165,15 @@ class SearchPlanner:
         visible = frozenset(normalize_position(cell) for cell in visible_cells)
         step_number = int(step_number)
         self._ensure_topology(analysis)
+        if freshness is None:
+            self._freshness.update(
+                analysis,
+                belief,
+                visible,
+                step_number,
+            )
+        else:
+            self._freshness = freshness
         if self.phase != SearchPhase.OPPORTUNISTIC_SWEEP:
             self._reset_opportunity_report()
         if reachable_cells is None:
@@ -454,9 +463,7 @@ class SearchPlanner:
                 ), False, True
             area = analysis.areas[area_id]
             entry = self._priority_endpoint(analysis, area_id)
-            required = self._snapshot_required(
-                topology, area, belief, visible, step_number,
-            )
+            required = self._snapshot_required(area, belief)
             # ``plan_area_route`` is exhaustive.  Give every profile a fair,
             # small slice instead of letting the first area consume the entire
             # global planning window.
@@ -565,9 +572,7 @@ class SearchPlanner:
     def _start_sweep(self, topology, analysis, belief, position, visible,
                      step_number, deadline):
         area = analysis.areas[self.target_area_id]
-        self.required_cells = self._snapshot_required(
-            topology, area, belief, visible, step_number,
-        )
+        self.required_cells = self._snapshot_required(area, belief)
         self._snapshot_step = step_number
         self.exit = self._exit_toward_next(analysis, self.target_area_id)
         route = plan_area_route(
@@ -596,35 +601,8 @@ class SearchPlanner:
             )
         self.phase = SearchPhase.SWEEP_ACTIVE_AREA
 
-    def _snapshot_required(self, topology, area, belief, visible, step_number):
-        required = set(belief.never_observed_in_area(area))
-        required.update(belief.possible_positions_in_area(area))
-        possible = tuple(sorted(belief.possible_positions))
-        ghost_distances = self._ghost_distance_map(topology, possible)
-        for cell in area.cells:
-            cell = normalize_position(cell)
-            age = belief.last_observed_age(cell, step_number)
-            if age is None:
-                continue
-            if age >= ghost_distances.get(cell, float("inf")):
-                required.add(cell)
-        # A current observation is already valid at the snapshot instant.
-        required.intersection_update(normalize_position(cell) for cell in area.cells)
-        return frozenset(required)
-
-    @staticmethod
-    def _ghost_distance_map(topology, possible):
-        """One multi-source BFS gives all earliest Ghost arrival times."""
-        distances = {normalize_position(source): 0 for source in possible}
-        frontier = deque(sorted(distances))
-        while frontier:
-            current = frontier.popleft()
-            for neighbor in traversable_neighbors(topology, current):
-                if neighbor in distances:
-                    continue
-                distances[neighbor] = distances[current] + 1
-                frontier.append(neighbor)
-        return distances
+    def _snapshot_required(self, area, belief):
+        return self._freshness.required_cells_in_area(area, belief)
 
     def _covered_required(self, belief, visible, step_number):
         if self._snapshot_step is None:
@@ -655,9 +633,7 @@ class SearchPlanner:
             return None, None
 
         area = analysis.areas[current_area_id]
-        required = self._snapshot_required(
-            topology, area, belief, visible, step_number,
-        )
+        required = self._snapshot_required(area, belief)
         self._set_opportunity_report(
             current_area_id, required, "evaluating",
         )

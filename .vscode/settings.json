@@ -1,0 +1,60 @@
+{
+  "files.associations": {
+    "seek-agent-areas.txt": "seek-agent-map"
+  },
+  "[seek-agent-map]": {
+    "editor.semanticHighlighting.enabled": false,
+    "editor.bracketPairColorization.enabled": false,
+    "editor.guides.bracketPairs": false,
+    "editor.wordWrap": "off",
+    "editor.fontFamily": "'Cascadia Mono', Consolas, 'Courier New', monospace",
+    "editor.fontLigatures": false,
+    "editor.minimap.enabled": false,
+    "editor.lineNumbers": "off"
+  },
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "markup.heading.seek-agent-map",
+        "settings": {
+          "foreground": "#FFD166",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "constant.other.area.seek-agent-map",
+        "settings": {
+          "foreground": "#4FC3F7"
+        }
+      },
+      {
+        "scope": "markup.inserted.fresh.seek-agent-map",
+        "settings": {
+          "foreground": "#66FF99",
+          "fontStyle": "bold"
+        }        
+      },
+      {
+        "scope": "entity.name.target.seek-agent-map",
+        "settings": {
+          "foreground": "#FFD166",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "entity.name.pacman.seek-agent-map",
+        "settings": {
+          "foreground": "#E06C75",
+          "background": "#D000FF",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "comment.block.wall.seek-agent-map",
+        "settings": {
+          "foreground": "#5A5A5A"
+        }
+      }
+    ]
+  }
+}

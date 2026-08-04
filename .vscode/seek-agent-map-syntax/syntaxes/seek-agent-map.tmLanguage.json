@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Seek Agent Map",
+  "scopeName": "source.seek-agent-map",
+  "patterns": [
+    {
+      "match": "(?<=\\|) P (?=\\|)",
+      "name": "entity.name.pacman.seek-agent-map"
+    },
+    {
+      "match": "(?<=\\|) / (?=\\|)",
+      "name": "markup.inserted.fresh.seek-agent-map"
+    },
+    {
+      "match": "###",
+      "name": "comment.block.wall.seek-agent-map"
+    },
+    {
+      "match": "(?<=\\|)<[0-9A-Z]+>(?=\\|)",
+      "name": "entity.name.target.seek-agent-map"
+    },
+    {
+      "match": "(?<=\\|) [0-9A-Z] (?=\\|)",
+      "name": "constant.other.area.seek-agent-map"
+    },
+    {
+      "match": "^(SEEK AGENT AREA MAP|MAP .*|AREAS|GATEWAYS)$",
+      "name": "markup.heading.seek-agent-map"
+    }
+  ]
+}
