@@ -274,10 +274,12 @@ def _search_summary(decision):
             "replan_reason": None,
             "planning_seconds": None,
             "exact": None,
-            "fallback": None,
-            "fallback_meaning": "global_priority_fallback",
+            "fallback": False,
+            "fallback_scope": None,
+            "fallback_meaning": None,
         }
 
+    fallback = _fallback_fields(decision)
     return {
         "decision_made": True,
         "phase": decision.phase.value,
@@ -304,8 +306,29 @@ def _search_summary(decision):
         "replan_reason": decision.replan_reason,
         "planning_seconds": float(decision.planning_seconds),
         "exact": bool(decision.exact),
-        "fallback": bool(decision.fallback),
-        "fallback_meaning": "global_priority_fallback",
+        **fallback,
+    }
+
+
+def _fallback_fields(decision):
+    """Explain the narrow scope of the planner's fallback flag."""
+    safety_reasons = {"position_outside_areas", "no_reachable_area"}
+    if decision.replan_reason in safety_reasons:
+        return {
+            "fallback": True,
+            "fallback_scope": "search_safety",
+            "fallback_meaning": decision.replan_reason,
+        }
+    if decision.fallback:
+        return {
+            "fallback": True,
+            "fallback_scope": "global_priority",
+            "fallback_meaning": "deadline_or_incomplete_global_profile",
+        }
+    return {
+        "fallback": False,
+        "fallback_scope": None,
+        "fallback_meaning": None,
     }
 
 
