@@ -14,8 +14,13 @@ from .spatial import traversable_neighbors, visibility_footprint
 MAX_VIEWPOINTS_PER_AREA = 5
 MIN_AREA_CELLS = 8
 VISIBILITY_RADIUS = 5
+ANALYSIS_TIME_LIMIT_SECONDS = 0.6
 
 _ANALYSIS_CACHE = {}
+
+
+class _AnalysisDeadlineExceeded(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -59,20 +64,26 @@ class AreaAnalyzer:
         if cached is not None:
             return cached, True
 
+        started_at = perf_counter()
         try:
-            analysis = _analyze_topology(topology, fingerprint)
+            analysis = _analyze_topology(
+                topology,
+                fingerprint,
+                started_at,
+                started_at + ANALYSIS_TIME_LIMIT_SECONDS,
+            )
         except Exception as exc:
             analysis = _fallback_analysis(
                 topology,
                 fingerprint,
                 f"{type(exc).__name__}: {exc}",
+                started_at,
             )
         _ANALYSIS_CACHE[fingerprint] = analysis
         return analysis, False
 
 
-def _analyze_topology(topology, fingerprint):
-    started_at = perf_counter()
+def _analyze_topology(topology, fingerprint, started_at, deadline):
     nodes = tuple(
         tuple(int(value) for value in position)
         for position in np.argwhere(topology)
@@ -103,6 +114,7 @@ def _analyze_topology(topology, fingerprint):
     coverage_cache = {}
 
     while True:
+        _check_deadline(deadline)
         components = _connected_components(working_adjacency)
         coverage = {
             component: _bounded_coverage(
@@ -110,6 +122,7 @@ def _analyze_topology(topology, fingerprint):
                 footprints,
                 MAX_VIEWPOINTS_PER_AREA,
                 coverage_cache,
+                deadline,
             )
             for component in components
         }
@@ -123,7 +136,13 @@ def _analyze_topology(topology, fingerprint):
 
         centrality = {}
         for component in oversized:
-            centrality.update(_edge_betweenness(working_adjacency, component))
+            centrality.update(
+                _edge_betweenness(
+                    working_adjacency,
+                    component,
+                    deadline,
+                )
+            )
         if not centrality:
             break
 
@@ -139,23 +158,124 @@ def _analyze_topology(topology, fingerprint):
         original_adjacency,
         footprints,
         coverage_cache,
+        deadline,
     )
-    ordered_components = sorted(
-        components,
-        key=lambda component: (_centroid(component), min(component)),
-    )
-
-    cell_to_area = {}
-    area_drafts = []
-    for area_id, component in enumerate(ordered_components):
+    component_viewpoints = []
+    for component in components:
         viewpoints = _bounded_coverage(
             component,
             footprints,
             MAX_VIEWPOINTS_PER_AREA,
             coverage_cache,
+            deadline,
         )
         if viewpoints is None:
             viewpoints = _greedy_coverage(component, footprints)
+        component_viewpoints.append((component, viewpoints))
+
+    return _assemble_analysis(
+        topology,
+        fingerprint,
+        original_adjacency,
+        component_viewpoints,
+        started_at,
+        error=None,
+    )
+
+
+def _fallback_analysis(topology, fingerprint, error, started_at):
+    nodes = tuple(
+        tuple(int(value) for value in position)
+        for position in np.argwhere(topology)
+    )
+    adjacency = {
+        node: set(traversable_neighbors(topology, node))
+        for node in nodes
+    }
+    footprints = {
+        node: visibility_footprint(topology, node, VISIBILITY_RADIUS)
+        for node in nodes
+    }
+    component_viewpoints = _fallback_regions(adjacency, footprints)
+    return _assemble_analysis(
+        topology,
+        fingerprint,
+        adjacency,
+        component_viewpoints,
+        started_at,
+        error,
+    )
+
+
+def _fallback_regions(adjacency, footprints):
+    """Quickly grow connected regions covered by at most five viewpoints."""
+    unassigned = set(adjacency)
+    regions = []
+
+    while unassigned:
+        seed = min(unassigned)
+        unassigned.remove(seed)
+        cells = {seed}
+        viewpoints = [seed]
+        visible = set(footprints[seed])
+
+        while True:
+            while True:
+                additions = {
+                    neighbor
+                    for cell in cells
+                    for neighbor in adjacency[cell]
+                    if neighbor in unassigned and neighbor in visible
+                }
+                if not additions:
+                    break
+                cells.update(additions)
+                unassigned.difference_update(additions)
+
+            boundary = {
+                neighbor
+                for cell in cells
+                for neighbor in adjacency[cell]
+                if neighbor in unassigned
+            }
+            if (
+                not boundary
+                or len(viewpoints) >= MAX_VIEWPOINTS_PER_AREA
+            ):
+                break
+
+            viewpoint = min(
+                boundary,
+                key=lambda cell: (
+                    -len(footprints[cell] & unassigned),
+                    cell,
+                ),
+            )
+            viewpoints.append(viewpoint)
+            cells.add(viewpoint)
+            unassigned.remove(viewpoint)
+            visible.update(footprints[viewpoint])
+
+        regions.append((frozenset(cells), tuple(viewpoints)))
+
+    return tuple(regions)
+
+
+def _assemble_analysis(
+    topology,
+    fingerprint,
+    original_adjacency,
+    component_viewpoints,
+    started_at,
+    error,
+):
+    ordered_regions = sorted(
+        component_viewpoints,
+        key=lambda item: (_centroid(item[0]), min(item[0])),
+    )
+    cell_to_area = {}
+    area_drafts = []
+    for area_id, (component, viewpoints) in enumerate(ordered_regions):
         centroid = _centroid(component)
         for cell in component:
             cell_to_area[cell] = area_id
@@ -218,42 +338,6 @@ def _analyze_topology(topology, fingerprint):
         cell_to_area=cell_to_area,
         gateways=gateways,
         analysis_seconds=perf_counter() - started_at,
-        error=None,
-    )
-
-
-def _fallback_analysis(topology, fingerprint, error):
-    started_at = perf_counter()
-    cells = frozenset(
-        tuple(int(value) for value in position)
-        for position in np.argwhere(topology)
-    )
-    if not cells:
-        areas = ()
-        cell_to_area = {}
-    else:
-        footprints = {
-            cell: visibility_footprint(topology, cell, VISIBILITY_RADIUS)
-            for cell in cells
-        }
-        centroid = _centroid(cells)
-        area = Area(
-            area_id=0,
-            cells=cells,
-            centroid=centroid,
-            position_label=_position_label(centroid, topology.shape),
-            viewpoints=_greedy_coverage(cells, footprints),
-            neighbors=(),
-        )
-        areas = (area,)
-        cell_to_area = {cell: 0 for cell in cells}
-    return AreaAnalysis(
-        fingerprint=fingerprint,
-        shape=tuple(int(value) for value in topology.shape),
-        areas=areas,
-        cell_to_area=cell_to_area,
-        gateways=(),
-        analysis_seconds=perf_counter() - started_at,
         error=error,
     )
 
@@ -278,7 +362,15 @@ def _connected_components(adjacency):
     return tuple(sorted(components, key=lambda item: (-len(item), min(item))))
 
 
-def _edge_betweenness(adjacency, component):
+def _check_deadline(deadline):
+    if deadline is not None and perf_counter() >= deadline:
+        raise _AnalysisDeadlineExceeded(
+            f"area analysis exceeded {ANALYSIS_TIME_LIMIT_SECONDS:.1f} seconds"
+        )
+
+
+def _edge_betweenness(adjacency, component, deadline=None):
+    _check_deadline(deadline)
     ordered_nodes = tuple(sorted(component))
     node_indices = {
         node: index
@@ -295,6 +387,7 @@ def _edge_betweenness(adjacency, component):
     scores = {}
 
     for source in range(len(ordered_nodes)):
+        _check_deadline(deadline)
         stack = []
         predecessors = [[] for _ in ordered_nodes]
         path_counts = [0.0] * len(ordered_nodes)
@@ -344,7 +437,9 @@ def _bounded_coverage(
     footprints,
     maximum_viewpoints,
     cache,
+    deadline=None,
 ):
+    _check_deadline(deadline)
     cached = cache.get(component)
     if cached is not None or component in cache:
         return cached
@@ -374,6 +469,7 @@ def _bounded_coverage(
             remaining ^= bit
 
     for limit in range(1, maximum_viewpoints + 1):
+        _check_deadline(deadline)
         failed_states = set()
         result = _search_cover(
             full_mask,
@@ -381,6 +477,7 @@ def _bounded_coverage(
             candidates,
             covering_candidates,
             failed_states,
+            deadline,
         )
         if result is not None:
             selected = tuple(sorted(candidates[index][0] for index in result))
@@ -397,7 +494,9 @@ def _search_cover(
     candidates,
     covering_candidates,
     failed_states,
+    deadline=None,
 ):
+    _check_deadline(deadline)
     if uncovered == 0:
         return ()
     if remaining_choices == 0:
@@ -443,6 +542,7 @@ def _search_cover(
             candidates,
             covering_candidates,
             failed_states,
+            deadline,
         )
         if result is not None:
             return (candidate_index,) + result
@@ -488,10 +588,12 @@ def _merge_tiny_components(
     original_adjacency,
     footprints,
     coverage_cache,
+    deadline=None,
 ):
     components = list(components)
     changed = True
     while changed:
+        _check_deadline(deadline)
         changed = False
         for component in sorted(components, key=lambda item: (len(item), min(item))):
             if len(component) >= MIN_AREA_CELLS:
@@ -518,6 +620,7 @@ def _merge_tiny_components(
                     footprints,
                     MAX_VIEWPOINTS_PER_AREA,
                     coverage_cache,
+                    deadline,
                 ) is None:
                     continue
                 components.remove(component)
