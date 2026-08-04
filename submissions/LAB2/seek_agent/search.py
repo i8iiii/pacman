@@ -25,6 +25,7 @@ from .spatial import (
 
 PLANNING_TIME_LIMIT_SECONDS = 0.35
 PACMAN_SPEED = 2
+OPPORTUNITY_MAX_EXTRA_FRACTION = 0.5
 _UNREACHABLE_COST = (10 ** 6, 10 ** 6)
 
 
@@ -33,6 +34,7 @@ class SearchPhase(str, Enum):
 
     SELECT_PRIORITY = "select_priority"
     TRANSIT_TO_AREA = "transit_to_area"
+    OPPORTUNISTIC_SWEEP = "opportunistic_sweep"
     SWEEP_ACTIVE_AREA = "sweep_active_area"
     AREA_COMPLETE = "area_complete"
 
@@ -67,6 +69,12 @@ class SearchDecision:
     # outstanding-cell route.  ``fallback`` continues to describe global
     # priority planning only.
     local_route_fallback: bool
+    opportunity_area_id: int | None
+    opportunity_status: str | None
+    opportunity_direct_turns: int | None
+    opportunity_sweep_turns: int | None
+    opportunity_extra_turns: int | None
+    opportunity_required_cells: frozenset
 
     @property
     def route(self):
@@ -85,12 +93,26 @@ class _AreaProfile:
     complete: bool
 
 
+@dataclass(frozen=True)
+class _OpportunityPlan:
+    """A complete crossed-area sweep followed by the locked target."""
+
+    area_id: int
+    exit: tuple
+    route_cells: tuple
+    route_actions: tuple
+    required_cells: frozenset
+    direct_turns: int
+    sweep_turns: int
+    extra_turns: int
+
+
 class SearchPlanner:
     """Choose and sweep topology-derived areas without random movement.
 
-    The planner deliberately locks an area from selection until its snapshot
-    of information requirements has been observed.  Passing through another
-    area on the way there is only transit; it never changes that area's state.
+    The planner locks its designated target until that area's information
+    snapshot has been observed.  A crossed area may be swept temporarily when
+    doing so adds no more than half of the remaining direct travel time.
     """
 
     def __init__(self, pacman_speed=PACMAN_SPEED,
@@ -119,6 +141,8 @@ class SearchPlanner:
         self._route_action_index = 0
         self._local_route_fallback = False
         self._last_replan_reason = "new_match"
+        self._opportunity_rejections = {}
+        self._reset_opportunity_report()
 
     def interrupt(self, reason="behavior_interrupted"):
         """Drop a stale active route while preserving completed-area state."""
@@ -141,6 +165,8 @@ class SearchPlanner:
         visible = frozenset(normalize_position(cell) for cell in visible_cells)
         step_number = int(step_number)
         self._ensure_topology(analysis)
+        if self.phase != SearchPhase.OPPORTUNISTIC_SWEEP:
+            self._reset_opportunity_report()
         if reachable_cells is None:
             reachable_cells = reachable_component(topology, position)
         self._set_reachability(analysis, reachable_cells)
@@ -172,6 +198,24 @@ class SearchPlanner:
                 current_area, position, started_at, "no_reachable_area",
             )
 
+        if (
+            self.phase == SearchPhase.TRANSIT_TO_AREA
+            and current_area != self.target_area_id
+        ):
+            opportunity_reason, opportunity_completed = (
+                self._consider_transit_opportunity(
+                    topology, analysis, belief, position, visible, step_number,
+                    current_area, deadline,
+                )
+            )
+            if opportunity_completed is not None:
+                completed_this_step = opportunity_completed
+            if opportunity_reason in {
+                "opportunistic_sweep_accepted",
+                "opportunistic_area_completed_in_transit",
+            }:
+                replan_reason = opportunity_reason
+
         # Arrival is physical, not merely reaching a precomputed gateway goal.
         if self.phase == SearchPhase.TRANSIT_TO_AREA and current_area == self.target_area_id:
             self.entry = position
@@ -180,34 +224,52 @@ class SearchPlanner:
                 deadline,
             )
 
-        if self.phase == SearchPhase.SWEEP_ACTIVE_AREA:
+        if self.phase in {
+            SearchPhase.SWEEP_ACTIVE_AREA,
+            SearchPhase.OPPORTUNISTIC_SWEEP,
+        }:
             covered = self._covered_required(belief, visible, step_number)
             if covered == self.required_cells:
-                self.phase = SearchPhase.AREA_COMPLETE
-                self.completed_area_ids.add(self.target_area_id)
-                completed_this_step = self.target_area_id
-                self._last_replan_reason = "area_complete"
-                # Replan immediately: SEARCHING should not waste a turn at a
-                # completed area merely to expose an internal transition.
-                self._clear_active_area()
-                exact, fallback, selection_reason = self._select_priority(
-                    topology, analysis, belief, position, visible, step_number,
-                    deadline,
-                )
-                replan_reason = selection_reason or "area_complete"
-                current_area = analysis.area_for(position)
-                if self.target_area_id is not None and current_area == self.target_area_id:
-                    self.entry = position
-                    self._start_sweep(
+                if self.phase == SearchPhase.OPPORTUNISTIC_SWEEP:
+                    completed_this_step = self._opportunity_area_id
+                    if completed_this_step is not None:
+                        self.completed_area_ids.add(completed_this_step)
+                    self._opportunity_status = "completed"
+                    self._clear_service_route()
+                    self.phase = SearchPhase.TRANSIT_TO_AREA
+                    replan_reason = "opportunistic_area_complete"
+                else:
+                    self.phase = SearchPhase.AREA_COMPLETE
+                    self.completed_area_ids.add(self.target_area_id)
+                    completed_this_step = self.target_area_id
+                    self._last_replan_reason = "area_complete"
+                    # Replan immediately: SEARCHING should not waste a turn at
+                    # a completed area merely to expose an internal transition.
+                    self._clear_active_area()
+                    exact, fallback, selection_reason = self._select_priority(
                         topology, analysis, belief, position, visible,
                         step_number, deadline,
                     )
+                    replan_reason = selection_reason or "area_complete"
+                    current_area = analysis.area_for(position)
+                    if (
+                        self.target_area_id is not None
+                        and current_area == self.target_area_id
+                    ):
+                        self.entry = position
+                        self._start_sweep(
+                            topology, analysis, belief, position, visible,
+                            step_number, deadline,
+                        )
 
         sweep_replan_reason = None
         if self.phase == SearchPhase.TRANSIT_TO_AREA:
             cells = self._transit_route(topology, position)
             actions = path_to_actions(cells, self.pacman_speed)
-        elif self.phase == SearchPhase.SWEEP_ACTIVE_AREA:
+        elif self.phase in {
+            SearchPhase.SWEEP_ACTIVE_AREA,
+            SearchPhase.OPPORTUNISTIC_SWEEP,
+        }:
             cells, actions, sweep_replan_reason = self._sweep_route(
                 topology, analysis, belief, position, visible, step_number,
                 deadline,
@@ -219,7 +281,10 @@ class SearchPlanner:
         if sweep_replan_reason is not None:
             replan_reason = sweep_replan_reason
         chosen = actions[0] if actions else (Move.STAY, 1)
-        if self.phase == SearchPhase.SWEEP_ACTIVE_AREA and actions:
+        if self.phase in {
+            SearchPhase.SWEEP_ACTIVE_AREA,
+            SearchPhase.OPPORTUNISTIC_SWEEP,
+        } and actions:
             self._route_cell_index += int(chosen[1])
             self._route_action_index += 1
         covered = self._covered_required(belief, visible, step_number)
@@ -244,6 +309,12 @@ class SearchPlanner:
             exact=exact,
             fallback=fallback,
             local_route_fallback=self._local_route_fallback,
+            opportunity_area_id=self._opportunity_area_id,
+            opportunity_status=self._opportunity_status,
+            opportunity_direct_turns=self._opportunity_direct_turns,
+            opportunity_sweep_turns=self._opportunity_sweep_turns,
+            opportunity_extra_turns=self._opportunity_extra_turns,
+            opportunity_required_cells=self._opportunity_required_cells,
         )
 
     # A concise alias makes eventual controller integration read naturally.
@@ -274,6 +345,7 @@ class SearchPlanner:
 
     def _select_priority(self, topology, analysis, belief, position, visible,
                          step_number, deadline):
+        self._opportunity_rejections.clear()
         coverage_circuit_reset = False
         searchable_ids = tuple(
             area_id for area_id in self._reachable_area_ids
@@ -563,6 +635,224 @@ class SearchPlanner:
             or belief.last_observed_step.get(cell, -1) >= self._snapshot_step
         )
 
+    def _consider_transit_opportunity(
+        self,
+        topology,
+        analysis,
+        belief,
+        position,
+        visible,
+        step_number,
+        current_area_id,
+        deadline,
+    ):
+        """Sweep a crossed area only when its marginal delay is worthwhile."""
+        if (
+            current_area_id is None
+            or current_area_id in self.completed_area_ids
+            or current_area_id == self.target_area_id
+        ):
+            return None, None
+
+        area = analysis.areas[current_area_id]
+        required = self._snapshot_required(
+            topology, area, belief, visible, step_number,
+        )
+        self._set_opportunity_report(
+            current_area_id, required, "evaluating",
+        )
+        if not required:
+            self.completed_area_ids.add(current_area_id)
+            self._opportunity_status = "completed_in_transit"
+            return "opportunistic_area_completed_in_transit", current_area_id
+
+        signature = (
+            self.target_area_id,
+            current_area_id,
+            position,
+            required,
+        )
+        cached = self._opportunity_rejections.get(signature)
+        if cached is not None:
+            status, direct_turns, sweep_turns, extra_turns = cached
+            self._set_opportunity_report(
+                current_area_id,
+                required,
+                status,
+                direct_turns,
+                sweep_turns,
+                extra_turns,
+            )
+            return None, None
+
+        direct_path, _ = self._best_entry_path(
+            topology, analysis, position, self.target_area_id,
+        )
+        if direct_path is None:
+            self._opportunity_status = "target_unreachable"
+            return None, None
+        direct_turns = count_path_turns(direct_path, self.pacman_speed)
+        self._opportunity_direct_turns = direct_turns
+
+        next_hop = self._next_area_hop(
+            analysis, current_area_id, self.target_area_id,
+        )
+        exits = self._gateway_cells(
+            analysis, current_area_id, next_hop,
+        )
+        if not exits:
+            self._opportunity_status = "no_forward_exit"
+            self._opportunity_rejections[signature] = (
+                self._opportunity_status, direct_turns, None, None,
+            )
+            return None, None
+
+        candidates = []
+        planning_incomplete = False
+        for exit_index, exit_cell in enumerate(exits):
+            if perf_counter() >= deadline:
+                planning_incomplete = True
+                break
+            exits_left = len(exits) - exit_index
+            route_deadline = min(
+                deadline,
+                perf_counter() + max(
+                    0.0,
+                    (deadline - perf_counter()) / exits_left,
+                ),
+            )
+            route = plan_area_route(
+                topology,
+                area,
+                position,
+                exit=exit_cell,
+                required_cells=required,
+                pacman_speed=self.pacman_speed,
+                deadline=route_deadline,
+            )
+            if not route.complete:
+                planning_incomplete = True
+                continue
+            onward_path, _ = self._best_entry_path(
+                topology, analysis, exit_cell, self.target_area_id,
+            )
+            if onward_path is None:
+                continue
+            sweep_turns = route.turns + count_path_turns(
+                onward_path, self.pacman_speed,
+            )
+            extra_turns = max(0, sweep_turns - direct_turns)
+            plan = _OpportunityPlan(
+                area_id=current_area_id,
+                exit=exit_cell,
+                route_cells=tuple(route.cells),
+                route_actions=tuple(route.actions),
+                required_cells=required,
+                direct_turns=direct_turns,
+                sweep_turns=sweep_turns,
+                extra_turns=extra_turns,
+            )
+            candidates.append((
+                sweep_turns,
+                route.cell_steps + max(0, len(onward_path) - 1),
+                tuple(route.cells),
+                exit_cell,
+                plan,
+            ))
+
+        if not candidates:
+            self._opportunity_status = (
+                "planning_incomplete"
+                if planning_incomplete
+                else "no_complete_route"
+            )
+            if not planning_incomplete:
+                self._opportunity_rejections[signature] = (
+                    self._opportunity_status, direct_turns, None, None,
+                )
+            return None, None
+
+        plan = min(candidates)[-1]
+        self._set_opportunity_report(
+            plan.area_id,
+            plan.required_cells,
+            "rejected_cost",
+            plan.direct_turns,
+            plan.sweep_turns,
+            plan.extra_turns,
+        )
+        if (
+            plan.extra_turns
+            > plan.direct_turns * OPPORTUNITY_MAX_EXTRA_FRACTION
+        ):
+            self._opportunity_rejections[signature] = (
+                self._opportunity_status,
+                plan.direct_turns,
+                plan.sweep_turns,
+                plan.extra_turns,
+            )
+            return None, None
+
+        self._opportunity_status = "accepted"
+        self.required_cells = plan.required_cells
+        self._snapshot_step = step_number
+        self.exit = plan.exit
+        self._route_cells = plan.route_cells
+        self._route_actions = plan.route_actions
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = False
+        self.phase = SearchPhase.OPPORTUNISTIC_SWEEP
+        return "opportunistic_sweep_accepted", None
+
+    @staticmethod
+    def _gateway_cells(analysis, area_id, neighbor_id):
+        """Return exits from ``area_id`` toward its next target-side hop."""
+        if neighbor_id is None:
+            return ()
+        cells = set()
+        for gateway in analysis.gateways:
+            if {gateway.area_a, gateway.area_b} != {area_id, neighbor_id}:
+                continue
+            for first, second in gateway.connections:
+                cells.add(first if gateway.area_a == area_id else second)
+        return tuple(sorted(normalize_position(cell) for cell in cells))
+
+    def _set_opportunity_report(
+        self,
+        area_id,
+        required,
+        status,
+        direct_turns=None,
+        sweep_turns=None,
+        extra_turns=None,
+    ):
+        self._opportunity_area_id = area_id
+        self._opportunity_status = status
+        self._opportunity_direct_turns = direct_turns
+        self._opportunity_sweep_turns = sweep_turns
+        self._opportunity_extra_turns = extra_turns
+        self._opportunity_required_cells = frozenset(required)
+
+    def _reset_opportunity_report(self):
+        self._opportunity_area_id = None
+        self._opportunity_status = None
+        self._opportunity_direct_turns = None
+        self._opportunity_sweep_turns = None
+        self._opportunity_extra_turns = None
+        self._opportunity_required_cells = frozenset()
+
+    def _clear_service_route(self):
+        """Clear local sweep state without dropping the designated target."""
+        self.exit = None
+        self.required_cells = frozenset()
+        self._snapshot_step = None
+        self._route_cells = ()
+        self._route_actions = ()
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = False
+
     def _transit_route(self, topology, position):
         path, entry = self._best_entry_path(
             topology, self._analysis, position, self.target_area_id,
@@ -602,7 +892,12 @@ class SearchPlanner:
         # A chase interruption, altered action result, or exhausted partial
         # route invalidated the suffix.  Rebuild only the locked local route;
         # never choose another area and never target already-covered cells.
-        area = analysis.areas[self.target_area_id]
+        active_area_id = (
+            self._opportunity_area_id
+            if self.phase == SearchPhase.OPPORTUNISTIC_SWEEP
+            else self.target_area_id
+        )
+        area = analysis.areas[active_area_id]
         route = plan_area_route(
             topology, area, position, exit=self.exit,
             required_cells=outstanding,
@@ -754,14 +1049,9 @@ class SearchPlanner:
         self.target_area_id = None
         self.planned_area_order = ()
         self.entry = None
-        self.exit = None
-        self.required_cells = frozenset()
-        self._snapshot_step = None
-        self._route_cells = ()
-        self._route_actions = ()
-        self._route_cell_index = 0
-        self._route_action_index = 0
-        self._local_route_fallback = False
+        self._clear_service_route()
+        self._opportunity_rejections.clear()
+        self._reset_opportunity_report()
 
     def _fallback_decision(self, current_area, position, started_at, reason):
         return SearchDecision(
@@ -785,4 +1075,10 @@ class SearchPlanner:
             exact=False,
             fallback=True,
             local_route_fallback=False,
+            opportunity_area_id=self._opportunity_area_id,
+            opportunity_status=self._opportunity_status,
+            opportunity_direct_turns=self._opportunity_direct_turns,
+            opportunity_sweep_turns=self._opportunity_sweep_turns,
+            opportunity_extra_turns=self._opportunity_extra_turns,
+            opportunity_required_cells=self._opportunity_required_cells,
         )

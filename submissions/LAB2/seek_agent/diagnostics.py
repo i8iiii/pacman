@@ -1,13 +1,16 @@
 """Optional structured diagnostics for the seek agent."""
 
+from collections import deque
 import json
 import os
 from pathlib import Path
 
 import numpy as np
 
+from .search import OPPORTUNITY_MAX_EXTRA_FRACTION
 
-PACMAN_SEEK_DIAGNOSTICS = False
+
+PACMAN_SEEK_DIAGNOSTICS = True
 _ENABLED_VALUES = {"1", "true", "yes", "on"}
 _DISABLED_VALUES = {"0", "false", "no", "off"}
 
@@ -66,8 +69,10 @@ class SeekDiagnostics:
         map_state,
         cache_hit,
         reachable_cells=None,
+        ghost_belief=None,
+        step_number=None,
     ):
-        """Write a static, human-readable representation of the map areas."""
+        """Write the human-readable map areas and live scouting freshness."""
         if not self.enabled or analysis is None:
             return
 
@@ -81,8 +86,14 @@ class SeekDiagnostics:
                 area.area_id: _area_symbol(area.area_id)
                 for area in analysis.areas
             }
+            fresh_cells = _fresh_observed_cells(
+                observation,
+                ghost_belief,
+                step_number,
+            )
             lines = [
                 "SEEK AGENT AREA MAP",
+                f"step: {'initial' if step_number is None else int(step_number)}",
                 f"fingerprint: {analysis.fingerprint}",
                 f"shape: {analysis.shape[0]} x {analysis.shape[1]}",
                 f"areas: {len(analysis.areas)}",
@@ -92,14 +103,19 @@ class SeekDiagnostics:
                 f"reachable_cell_count: {reachability['reachable_cell_count']}",
                 f"reachable_area_ids: {reachability['reachable_area_ids']}",
                 f"excluded_area_ids: {reachability['excluded_area_ids']}",
+                f"fresh_observed_cells: {len(fresh_cells)}",
                 "",
-                "MAP (### = wall, centered value = area ID)",
+                (
+                    "MAP (### = wall, / = seen and fresh, "
+                    "value = unseen/expired area ID)"
+                ),
             ]
             lines.extend(
                 _render_area_grid(
                     observation,
                     analysis.cell_to_area,
                     symbols,
+                    fresh_cells,
                 )
             )
 
@@ -232,6 +248,14 @@ class SeekDiagnostics:
             }
             with self.log_path.open("a", encoding="utf-8") as log_file:
                 log_file.write(json.dumps(record, sort_keys=True) + "\n")
+            self.write_area_analysis(
+                area_analysis,
+                observation,
+                area_cache_hit,
+                reachable_cells=reachable_cells,
+                ghost_belief=ghost_belief,
+                step_number=step_number,
+            )
         except Exception:
             # Diagnostics must never alter or terminate the agent's decisions.
             return
@@ -362,6 +386,16 @@ def _search_summary(decision):
             "fallback": False,
             "fallback_scope": None,
             "fallback_meaning": None,
+            "opportunity": {
+                "area_id": None,
+                "status": None,
+                "direct_turns": None,
+                "sweep_turns": None,
+                "extra_turns": None,
+                "max_extra_fraction": OPPORTUNITY_MAX_EXTRA_FRACTION,
+                "required_cells": [],
+                "required_count": 0,
+            },
         }
 
     fallback = _fallback_fields(decision)
@@ -394,6 +428,19 @@ def _search_summary(decision):
         "planning_seconds": float(decision.planning_seconds),
         "exact": bool(decision.exact),
         "local_route_fallback": bool(decision.local_route_fallback),
+        "opportunity": {
+            "area_id": decision.opportunity_area_id,
+            "status": decision.opportunity_status,
+            "direct_turns": decision.opportunity_direct_turns,
+            "sweep_turns": decision.opportunity_sweep_turns,
+            "extra_turns": decision.opportunity_extra_turns,
+            "max_extra_fraction": OPPORTUNITY_MAX_EXTRA_FRACTION,
+            "required_cells": [
+                _position(cell)
+                for cell in sorted(decision.opportunity_required_cells)
+            ],
+            "required_count": len(decision.opportunity_required_cells),
+        },
         **fallback,
     }
 
@@ -513,7 +560,60 @@ def _area_symbol(area_id):
     return alphabet[area_id]
 
 
-def _render_area_grid(observation, cell_to_area, symbols):
+def _fresh_observed_cells(observation, belief, step_number):
+    """Mirror SEARCHING's expiration rule without changing agent state."""
+    if belief is None or step_number is None:
+        return frozenset()
+
+    rows, columns = observation.shape
+    possible = {
+        (int(cell[0]), int(cell[1]))
+        for cell in belief.possible_positions
+    }
+    distances = {cell: 0 for cell in possible}
+    frontier = deque(sorted(distances))
+    while frontier:
+        row, column = frontier.popleft()
+        for candidate in (
+            (row - 1, column),
+            (row + 1, column),
+            (row, column - 1),
+            (row, column + 1),
+        ):
+            candidate_row, candidate_column = candidate
+            if (
+                candidate in distances
+                or candidate_row < 0
+                or candidate_row >= rows
+                or candidate_column < 0
+                or candidate_column >= columns
+                or observation[candidate] == 1
+            ):
+                continue
+            distances[candidate] = distances[(row, column)] + 1
+            frontier.append(candidate)
+
+    current_step = int(step_number)
+    fresh = set()
+    for cell, observed_at in belief.last_observed_step.items():
+        position = int(cell[0]), int(cell[1])
+        row, column = position
+        if (
+            row < 0
+            or row >= rows
+            or column < 0
+            or column >= columns
+            or observation[position] == 1
+        ):
+            continue
+        age = max(0, current_step - int(observed_at))
+        if age < distances.get(position, float("inf")):
+            fresh.add(position)
+    return frozenset(fresh)
+
+
+def _render_area_grid(observation, cell_to_area, symbols, fresh_cells=()):
+    fresh_cells = frozenset(fresh_cells)
     rows, columns = observation.shape
     column_header = "    " + "".join(
         f"{column:02d}".center(3) + " "
@@ -528,6 +628,9 @@ def _render_area_grid(observation, cell_to_area, symbols):
             position = (row, column)
             if observation[position] == 1:
                 cells.append("###")
+                continue
+            if position in fresh_cells:
+                cells.append(" / ")
                 continue
             area_id = cell_to_area.get(position)
             cells.append(symbols.get(area_id, "?").center(3))
