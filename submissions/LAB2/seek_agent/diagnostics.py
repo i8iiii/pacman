@@ -7,22 +7,34 @@ from pathlib import Path
 import numpy as np
 
 
+PACMAN_SEEK_DIAGNOSTICS = True
 _ENABLED_VALUES = {"1", "true", "yes", "on"}
+_DISABLED_VALUES = {"0", "false", "no", "off"}
+
+
+def _diagnostics_enabled_from_environment():
+    configured = os.getenv("PACMAN_SEEK_DIAGNOSTICS")
+    if configured is None:
+        return PACMAN_SEEK_DIAGNOSTICS
+
+    configured = configured.strip().lower()
+    if configured in _ENABLED_VALUES:
+        return True
+    if configured in _DISABLED_VALUES:
+        return False
+    return PACMAN_SEEK_DIAGNOSTICS
 
 
 class SeekDiagnostics:
     """Write enough state to reconstruct each seeker decision.
 
-    Diagnostics are disabled by default and must never affect agent behavior.
-    Set ``PACMAN_SEEK_DIAGNOSTICS=1`` to enable the default log.
+    Diagnostics are enabled by default and must never affect agent behavior.
+    Set ``PACMAN_SEEK_DIAGNOSTICS=0`` to disable diagnostic output.
     """
 
     def __init__(self, enabled=None, log_path=None, area_path=None):
         if enabled is None:
-            enabled = (
-                os.getenv("PACMAN_SEEK_DIAGNOSTICS", "").strip().lower()
-                in _ENABLED_VALUES
-            )
+            enabled = _diagnostics_enabled_from_environment()
 
         self.enabled = bool(enabled)
         self.log_path = Path(log_path) if log_path else (
