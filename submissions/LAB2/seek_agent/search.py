@@ -8,7 +8,6 @@ later return to searching.
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from itertools import permutations
 from time import perf_counter
 
 from environment import Move
@@ -53,6 +52,9 @@ class SearchDecision:
     required_cells: frozenset
     covered_cells: frozenset
     completed_area_ids: frozenset
+    # Completion is an event so callers can observe AREA_COMPLETE without
+    # forcing an otherwise useless STAY turn before the next transit begins.
+    completed_this_step: int | None
     replan_reason: str | None
     planning_seconds: float
     exact: bool
@@ -62,6 +64,16 @@ class SearchDecision:
     def route(self):
         """Alias used by diagnostics that call the cell sequence a route."""
         return self.cells
+
+
+@dataclass(frozen=True)
+class _AreaProfile:
+    """Concrete local service route used by the global priority model."""
+
+    entry: tuple
+    exit: tuple
+    turns: int
+    cell_steps: int
 
 
 class SearchPlanner:
@@ -116,13 +128,15 @@ class SearchPlanner:
             )
 
         replan_reason = None
+        completed_this_step = None
         exact = True
         fallback = False
 
         if self.phase == SearchPhase.SELECT_PRIORITY or self.target_area_id is None:
             replan_reason = self._last_replan_reason or "select_priority"
             exact, fallback = self._select_priority(
-                topology, analysis, belief, position, deadline,
+                topology, analysis, belief, position, visible, step_number,
+                deadline,
             )
 
         if self.target_area_id is None:
@@ -143,12 +157,14 @@ class SearchPlanner:
             if covered == self.required_cells:
                 self.phase = SearchPhase.AREA_COMPLETE
                 self.completed_area_ids.add(self.target_area_id)
+                completed_this_step = self.target_area_id
                 self._last_replan_reason = "area_complete"
                 # Replan immediately: SEARCHING should not waste a turn at a
                 # completed area merely to expose an internal transition.
                 self._clear_active_area()
                 exact, fallback = self._select_priority(
-                    topology, analysis, belief, position, deadline,
+                    topology, analysis, belief, position, visible, step_number,
+                    deadline,
                 )
                 replan_reason = "area_complete"
                 current_area = analysis.area_for(position)
@@ -186,6 +202,7 @@ class SearchPlanner:
             required_cells=self.required_cells,
             covered_cells=covered,
             completed_area_ids=frozenset(self.completed_area_ids),
+            completed_this_step=completed_this_step,
             replan_reason=replan_reason,
             planning_seconds=perf_counter() - started_at,
             exact=exact,
@@ -200,7 +217,8 @@ class SearchPlanner:
             self.reset(analysis)
         self._analysis = analysis
 
-    def _select_priority(self, topology, analysis, belief, position, deadline):
+    def _select_priority(self, topology, analysis, belief, position, visible,
+                         step_number, deadline):
         remaining = tuple(
             area.area_id
             for area in analysis.areas
@@ -220,7 +238,8 @@ class SearchPlanner:
             perf_counter() + max(0.0, self.planning_limit_seconds - 0.06),
         )
         order, exact, fallback = self._global_order(
-            topology, analysis, belief, position, remaining, ordering_deadline,
+            topology, analysis, belief, position, visible, step_number,
+            remaining, ordering_deadline,
         )
         if not order:
             self.target_area_id = None
@@ -240,9 +259,15 @@ class SearchPlanner:
         self.phase = SearchPhase.TRANSIT_TO_AREA
         return exact, fallback
 
-    def _global_order(self, topology, analysis, belief, position, remaining,
-                      deadline):
-        """Bounded exhaustive order search with deterministic greedy fallback."""
+    def _global_order(self, topology, analysis, belief, position, visible,
+                      step_number, remaining, deadline):
+        """Route-aware subset DP over concrete area-service endpoints.
+
+        Exactness is defined for this bounded concrete model: each area uses
+        one stable gateway/viewpoint entry, a measured ``plan_area_route``
+        service route for its current requirements, and that route's endpoint
+        as the source of the following real minimum-turn transition.
+        """
         ids = tuple(sorted(remaining))
         weights = {
             area_id: len(belief.possible_positions_in_area(
@@ -250,12 +275,47 @@ class SearchPlanner:
             ))
             for area_id in ids
         }
-        initial_costs = {
-            area_id: self._path_cost(
-                self._best_entry_path(topology, analysis, position, area_id)[0],
+        profiles = {}
+        initial_costs = {}
+        for profile_index, area_id in enumerate(ids):
+            if perf_counter() >= deadline:
+                return self._greedy_order(
+                    ids, weights, initial_costs, {}, profiles,
+                ), False, True
+            area = analysis.areas[area_id]
+            entry = self._priority_endpoint(analysis, area_id)
+            required = self._snapshot_required(
+                topology, area, belief, visible, step_number,
             )
-            for area_id in ids
-        }
+            # ``plan_area_route`` is exhaustive.  Give every profile a fair,
+            # small slice instead of letting the first area consume the entire
+            # global planning window.
+            profiles_left = len(ids) - profile_index
+            profile_deadline = min(
+                deadline,
+                perf_counter() + min(
+                    0.025,
+                    max(0.0, (deadline - perf_counter()) / profiles_left),
+                ),
+            )
+            route = plan_area_route(
+                topology, area, entry, required_cells=required,
+                pacman_speed=self.pacman_speed, deadline=profile_deadline,
+            )
+            profiles[area_id] = _AreaProfile(
+                entry=entry,
+                exit=route.exit,
+                turns=route.turns,
+                cell_steps=route.cell_steps,
+            )
+            if perf_counter() >= deadline:
+                return self._greedy_order(
+                    ids, weights, initial_costs, {}, profiles,
+                ), False, True
+            initial_costs[area_id] = self._path_cost(minimum_turn_path(
+                topology, position, entry, pacman_speed=self.pacman_speed,
+            ))
+
         pair_costs = {}
         for source in ids:
             for target in ids:
@@ -263,41 +323,53 @@ class SearchPlanner:
                     pair_costs[source, target] = (0, 0)
                     continue
                 if perf_counter() >= deadline:
-                    return self._greedy_order(ids, weights, initial_costs, pair_costs), False, True
-                # Full maze searches for every ordered area pair can consume
-                # the entire game-turn budget.  Gateway hops are an exact
-                # topology connection relation and give a deterministic,
-                # bounded lower-cost estimate here; the chosen first target is
-                # still routed with a true minimum-turn maze path below.
-                pair_costs[source, target] = self._gateway_hop_cost(
-                    analysis, source, target,
-                )
+                    return self._greedy_order(
+                        ids, weights, initial_costs, pair_costs, profiles,
+                    ), False, True
+                pair_costs[source, target] = self._path_cost(minimum_turn_path(
+                    topology, profiles[source].exit, profiles[target].entry,
+                    pacman_speed=self.pacman_speed,
+                ))
 
-        best = None
-        # Eight areas means at most 40,320 orders.  The deadline remains an
-        # absolute guard so atypical maps degrade to the deterministic greedy.
-        for index, order in enumerate(permutations(ids)):
-            if index % 32 == 0 and perf_counter() >= deadline:
-                return self._greedy_order(ids, weights, initial_costs, pair_costs), False, True
-            elapsed_turns = 0
-            elapsed_cells = 0
-            weighted_latency = 0
-            previous = None
-            for area_id in order:
-                turns, cells = (
-                    initial_costs[area_id]
-                    if previous is None else pair_costs[previous, area_id]
-                )
-                elapsed_turns += turns + self._area_service_turns(analysis.areas[area_id])
-                elapsed_cells += cells
-                weighted_latency += weights[area_id] * elapsed_turns
-                previous = area_id
-            candidate = (weighted_latency, elapsed_turns, elapsed_cells, order)
-            if best is None or candidate < best:
-                best = candidate
-        return best[-1] if best is not None else (), True, False
+        states = {}
+        for area_id in ids:
+            turns, cells = initial_costs[area_id]
+            service = profiles[area_id]
+            elapsed_turns = turns + service.turns
+            states[1 << area_id, area_id] = (
+                weights[area_id] * elapsed_turns,
+                elapsed_turns,
+                cells + service.cell_steps,
+                (area_id,),
+            )
+        full_mask = sum(1 << area_id for area_id in ids)
+        for cardinality in range(1, len(ids)):
+            for (mask, last), state in tuple(states.items()):
+                if mask.bit_count() != cardinality:
+                    continue
+                if perf_counter() >= deadline:
+                    return self._greedy_order(
+                        ids, weights, initial_costs, pair_costs, profiles,
+                    ), False, True
+                for target in ids:
+                    if mask & (1 << target):
+                        continue
+                    move_turns, move_cells = pair_costs[last, target]
+                    service = profiles[target]
+                    elapsed_turns = state[1] + move_turns + service.turns
+                    candidate = (
+                        state[0] + weights[target] * elapsed_turns,
+                        elapsed_turns,
+                        state[2] + move_cells + service.cell_steps,
+                        state[3] + (target,),
+                    )
+                    key = mask | (1 << target), target
+                    if key not in states or candidate < states[key]:
+                        states[key] = candidate
+        best = min(state for (mask, _), state in states.items() if mask == full_mask)
+        return best[3], True, False
 
-    def _greedy_order(self, ids, weights, initial_costs, pair_costs):
+    def _greedy_order(self, ids, weights, initial_costs, pair_costs, profiles):
         unvisited = set(ids)
         order = []
         previous = None
@@ -516,24 +588,16 @@ class SearchPlanner:
         return current
 
     @staticmethod
-    def _area_service_turns(area):
-        return max(1, len(area.viewpoints))
-
-    @staticmethod
-    def _gateway_hop_cost(analysis, source, target):
-        if source == target:
-            return 0, 0
-        frontier = [(source, 0)]
-        seen = {source}
-        for area_id, hops in frontier:
-            for neighbor in analysis.areas[area_id].neighbors:
-                if neighbor in seen:
-                    continue
-                if neighbor == target:
-                    return hops + 1, hops + 1
-                seen.add(neighbor)
-                frontier.append((neighbor, hops + 1))
-        return _UNREACHABLE_COST
+    def _priority_endpoint(analysis, area_id):
+        """Choose a stable concrete gateway/viewpoint cell for DP costing."""
+        area = analysis.areas[area_id]
+        endpoints = set(normalize_position(cell) for cell in area.viewpoints)
+        for gateway in analysis.gateways:
+            if gateway.area_a == area_id:
+                endpoints.update(first for first, _ in gateway.connections)
+            elif gateway.area_b == area_id:
+                endpoints.update(second for _, second in gateway.connections)
+        return min(endpoints) if endpoints else min(area.cells)
 
     def _path_cost(self, path):
         if path is None:
@@ -569,6 +633,7 @@ class SearchPlanner:
             required_cells=self.required_cells,
             covered_cells=frozenset(),
             completed_area_ids=frozenset(self.completed_area_ids),
+            completed_this_step=None,
             replan_reason=reason,
             planning_seconds=perf_counter() - started_at,
             exact=False,
