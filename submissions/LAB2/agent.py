@@ -24,6 +24,7 @@ class PacmanAgent(BasePacmanAgent):
             pacman_speed=kwargs.get("pacman_speed", 2),
             diagnostics_enabled=kwargs.get("diagnostics_enabled"),
             diagnostic_log_path=kwargs.get("seek_log_path"),
+            diagnostic_area_path=kwargs.get("seek_area_path"),
         )
 
     def step(self, map_state, my_position, enemy_position, step_number):

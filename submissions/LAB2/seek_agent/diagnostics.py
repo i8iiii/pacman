@@ -17,7 +17,7 @@ class SeekDiagnostics:
     Set ``PACMAN_SEEK_DIAGNOSTICS=1`` to enable the default log.
     """
 
-    def __init__(self, enabled=None, log_path=None):
+    def __init__(self, enabled=None, log_path=None, area_path=None):
         if enabled is None:
             enabled = (
                 os.getenv("PACMAN_SEEK_DIAGNOSTICS", "").strip().lower()
@@ -27,6 +27,9 @@ class SeekDiagnostics:
         self.enabled = bool(enabled)
         self.log_path = Path(log_path) if log_path else (
             Path(__file__).resolve().parent.parent / "debug" / "seek-agent.jsonl"
+        )
+        self.area_path = Path(area_path) if area_path else (
+            Path(__file__).resolve().parent.parent / "debug" / "seek-agent-areas.txt"
         )
 
         if self.enabled:
@@ -40,9 +43,74 @@ class SeekDiagnostics:
     def _safely_prepare_log(self):
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            self.area_path.parent.mkdir(parents=True, exist_ok=True)
             self.log_path.write_text("", encoding="utf-8")
+            self.area_path.write_text("", encoding="utf-8")
         except Exception:
             self.enabled = False
+
+    def write_area_analysis(self, analysis, map_state, cache_hit):
+        """Write a static, human-readable representation of the map areas."""
+        if not self.enabled or analysis is None:
+            return
+
+        try:
+            observation = np.asarray(map_state)
+            symbols = {
+                area.area_id: _area_symbol(area.area_id)
+                for area in analysis.areas
+            }
+            lines = [
+                "SEEK AGENT AREA MAP",
+                f"fingerprint: {analysis.fingerprint}",
+                f"shape: {analysis.shape[0]} x {analysis.shape[1]}",
+                f"areas: {len(analysis.areas)}",
+                f"analysis_seconds: {analysis.analysis_seconds:.6f}",
+                f"cache_hit: {bool(cache_hit)}",
+                f"error: {analysis.error or 'none'}",
+                "",
+                "MAP (# = wall, other symbols = area IDs)",
+            ]
+            for row in range(observation.shape[0]):
+                rendered = []
+                for column in range(observation.shape[1]):
+                    position = (row, column)
+                    if observation[position] == 1:
+                        rendered.append("#")
+                    else:
+                        area_id = analysis.cell_to_area.get(position)
+                        rendered.append(symbols.get(area_id, "?"))
+                lines.append("".join(rendered))
+
+            lines.extend(("", "AREAS"))
+            for area in analysis.areas:
+                lines.extend(
+                    (
+                        (
+                            f"[{symbols[area.area_id]}] AREA {area.area_id} "
+                            f"{area.position_label}"
+                        ),
+                        f"  cells: {len(area.cells)}",
+                        (
+                            "  centroid: "
+                            f"({area.centroid[0]:.2f}, {area.centroid[1]:.2f})"
+                        ),
+                        f"  viewpoints ({len(area.viewpoints)}): {list(area.viewpoints)}",
+                        f"  neighbors: {list(area.neighbors)}",
+                    )
+                )
+
+            lines.extend(("", "GATEWAYS"))
+            if not analysis.gateways:
+                lines.append("none")
+            for gateway in analysis.gateways:
+                lines.append(
+                    f"AREA {gateway.area_a} <-> AREA {gateway.area_b}: "
+                    f"{list(gateway.connections)}"
+                )
+            self.area_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except Exception:
+            return
 
     def record_decision(
         self,
@@ -62,6 +130,10 @@ class SeekDiagnostics:
         move,
         move_steps,
         duration_seconds,
+        area_analysis=None,
+        area_cache_hit=False,
+        current_area_id=None,
+        target_area_id=None,
         error=None,
     ):
         if not self.enabled:
@@ -83,6 +155,22 @@ class SeekDiagnostics:
                 "path": [_position(position) for position in (path or [])],
                 "action": {"move": move.name, "steps": int(move_steps)},
                 "duration_seconds": float(duration_seconds),
+                "area_fingerprint": (
+                    None if area_analysis is None else area_analysis.fingerprint
+                ),
+                "area_count": (
+                    0 if area_analysis is None else len(area_analysis.areas)
+                ),
+                "area_analysis_seconds": (
+                    None if area_analysis is None
+                    else float(area_analysis.analysis_seconds)
+                ),
+                "area_cache_hit": bool(area_cache_hit),
+                "area_error": (
+                    None if area_analysis is None else area_analysis.error
+                ),
+                "current_area_id": current_area_id,
+                "target_area_id": target_area_id,
                 "observation": observation.tolist(),
                 "visible_mask": (observation == 0).astype(np.int8).tolist(),
                 "topology": topology_array.tolist(),
@@ -99,3 +187,10 @@ def _position(value):
     if value is None:
         return None
     return [int(value[0]), int(value[1])]
+
+
+def _area_symbol(area_id):
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if area_id is None or area_id < 0 or area_id >= len(alphabet):
+        return "?"
+    return alphabet[area_id]
