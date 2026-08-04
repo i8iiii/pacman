@@ -142,27 +142,12 @@ as responsibilities appear during implementation. A function used by multiple
 components will be moved into a distinct shared helper location; behavior that
 has only one consumer stays with its owner.
 
-## Testing
+## Verification
 
-The first increment requires focused tests for:
-
-- interpreting both `0` and `-1` as traversable and `1` as blocked;
-- entering `CHASING` when the Ghost is visible;
-- updating the saved Ghost position on every visible turn;
-- shortest-path direction selection around walls;
-- requesting two steps only for a two-cell straight path prefix;
-- requesting one step when the path turns after its first edge;
-- transitioning from `CHASING` to `INVESTIGATING` on lost visibility;
-- returning to `CHASING` when the Ghost reappears;
-- moving to the last-seen position while investigating;
-- staying after reaching the last-seen position without reacquisition;
-- clearing state when a new match begins;
-- returning a safe action rather than raising when no path is available;
-- diagnostics receiving the expected decision facts without affecting actions.
-
-Tests will use small synthetic grids where possible instead of depending only
-on the default arena map. At least one integration test will load the new agent
-through the real `AgentLoader` and validate its returned action.
+No automated test files or test-suite work are required for this increment.
+Verification is limited to compiling the changed Python files, importing the
+submission through the real `AgentLoader`, and making representative calls that
+confirm the agent returns framework-valid actions without exceptions.
 
 ## Explicitly Deferred
 
