@@ -59,7 +59,7 @@ def reachable_component(topology, start):
     """
     try:
         start = normalize_position(start)
-    except (IndexError, TypeError, ValueError):
+    except (IndexError, OverflowError, TypeError, ValueError):
         return frozenset()
     if not is_traversable(topology, start):
         return frozenset()
