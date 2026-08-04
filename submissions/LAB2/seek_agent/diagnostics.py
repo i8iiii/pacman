@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 
-PACMAN_SEEK_DIAGNOSTICS = True
+PACMAN_SEEK_DIAGNOSTICS = False
 _ENABLED_VALUES = {"1", "true", "yes", "on"}
 _DISABLED_VALUES = {"0", "false", "no", "off"}
 
