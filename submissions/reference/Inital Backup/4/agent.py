@@ -1,39 +1,3 @@
-# PacmanAgent Clean Rewrite — Implementation Plan
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Rewrite `submissions/LAB2/agent.py` with a clean modular class-based PacmanAgent using 6-ply minimax, A*/BFS, ghost probability estimation, and persistent map cache.
-
-**Architecture:** Single file `agent.py` containing 6 internal classes (MapMemory, MapAnalyzer, PathFinder, GhostProbability, MinimaxEngine, SweepPlanner) orchestrated by PacmanAgent. GhostAgent is kept unchanged as-is.
-
-**Tech Stack:** Python 3.7+, numpy, standard library (deque, heapq, time, random, pathlib)
-
-## Global Constraints
-
-- Single file output: `submissions/LAB2/agent.py`
-- GhostAgent class must remain identical to current (imports `HideController`)
-- PacmanAgent must inherit from `agent_interface.PacmanAgent`
-- Must handle `enemy_position is None` (fog of war)
-- Must support Pacman speed multiplier (return `(Move, steps)` tuple when speed > 1)
-- Map cache persists across arena matches via module-level `_MAP_CACHE` dict
-- BFS for evaluation distances, A* for pathfinding
-- 6-ply minimax with alpha-beta pruning (fixed depth, not adaptive)
-
----
-
-### Task 1: File skeleton, helpers, _MAP_CACHE, and GhostAgent
-
-**Files:**
-- Create: `submissions/LAB2/agent.py` (full rewrite)
-
-**Interfaces:**
-- Produces: `_MAP_CACHE: dict[int, np.ndarray]`, `_fingerprint(map_state) -> int`, `_manhattan(a, b) -> int`, `_is_valid(pos, map_state) -> bool`, `_count_exits(pos, map_state) -> int`, `DIRS`, `INF`, `GhostAgent` class
-
-**Purpose:** Set up module-level infrastructure: imports, constants, helper functions, cache dict, and the unchanged GhostAgent. This is the foundation that all subsequent tasks build on.
-
-- [ ] **Step 1: Write the skeleton file with imports, helpers, cache, and GhostAgent**
-
-```python
 """
 PacmanAgent: Clean modular rewrite.
 - MapMemory: persistent internal map with cross-match caching
@@ -45,7 +9,6 @@ PacmanAgent: Clean modular rewrite.
 """
 import sys
 import random
-import time
 import numpy as np
 from collections import deque
 from pathlib import Path
@@ -68,10 +31,10 @@ INF = 10 ** 9
 # ---------------------------------------------------------------------------
 # Persistent map cache (survives agent re-instantiation across matches)
 # ---------------------------------------------------------------------------
-_MAP_CACHE: dict[int, np.ndarray] = {}
+_MAP_CACHE: dict[int, "np.ndarray"] = {}
 
 
-def _fingerprint(map_state: np.ndarray) -> int:
+def _fingerprint(map_state: "np.ndarray") -> int:
     """Hash the wall pattern. Walls are always visible (value=1) even
     with fog of war, so this fingerprint is stable across observations."""
     flat = map_state.ravel()
@@ -86,7 +49,7 @@ def _manhattan(a: tuple, b: tuple) -> int:
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
-def _is_valid(pos: tuple, map_state: np.ndarray) -> bool:
+def _is_valid(pos: tuple, map_state: "np.ndarray") -> bool:
     """Check if position is within bounds and not a wall (value != 1)."""
     r, c = pos
     if map_state is None:
@@ -97,7 +60,7 @@ def _is_valid(pos: tuple, map_state: np.ndarray) -> bool:
     return map_state[r, c] != 1
 
 
-def _count_exits(pos: tuple, map_state: np.ndarray) -> int:
+def _count_exits(pos: tuple, map_state: "np.ndarray") -> int:
     return sum(
         1 for mv in DIRS
         if _is_valid((pos[0] + mv.value[0], pos[1] + mv.value[1]), map_state)
@@ -105,68 +68,7 @@ def _count_exits(pos: tuple, map_state: np.ndarray) -> int:
 
 
 # ============================================================
-# GhostAgent (unchanged from existing — kept verbatim)
-# ============================================================
-class GhostAgent(BaseGhostAgent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name = "Hide-Agent"
-        self._controller = HideController(
-            log_path=kwargs.get("log_path"),
-            map_text_path=kwargs.get("map_text_path"),
-            map_jsonl_path=kwargs.get("map_jsonl_path"),
-            diagnostics_enabled=kwargs.get("diagnostics_enabled"),
-            pacman_speed=kwargs.get("pacman_speed", 2),
-            capture_distance=kwargs.get("capture_distance", 2),
-            observation_radius=kwargs.get("observation_radius", 5),
-        )
-    def step(self, map_state, my_position, enemy_position, step_number):
-        return self._controller.step(map_state, my_position, enemy_position, step_number)
-```
-
-- [ ] **Step 2: Verify the file imports correctly**
-
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-from agent import _manhattan, _is_valid, _fingerprint, _MAP_CACHE, GhostAgent, DIRS, INF
-print('Imports OK')
-print('manhattan((0,0),(3,4)):', _manhattan((0,0),(3,4)))
-"
-```
-
-Expected: `Imports OK` + `manhattan((0,0),(3,4)): 7`
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add agent skeleton with helpers, cache, and GhostAgent"
-```
-
----
-
-### Task 2: MapMemory component
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add MapMemory class before GhostAgent section
-
-**Interfaces:**
-- Consumes: `_MAP_CACHE`, `_fingerprint`, `_is_valid`
-- Produces: `MapMemory` class with:
-  - `__init__()`: creates empty state (lazy init on first update)
-  - `update(map_state: np.ndarray) -> bool`: merge observation, return True if new cells discovered
-  - `get_map() -> np.ndarray`: return current internal_map
-  - `is_initialized() -> bool`: whether we've received first observation
-
-**Purpose:** Manages the growing internal map with cross-match persistence. On first update, checks module cache for previously-discovered map. Merges visible cells each step.
-
-- [ ] **Step 1: Add MapMemory class to agent.py**
-
-Insert before the `# ============================================================` line that precedes GhostAgent:
-
-```python
-# ============================================================
-# MapMemory — persistent internal map, cached across matches
+# MapMemory -- persistent internal map, cached across matches
 # ============================================================
 class MapMemory:
     """Maintains the growing internal map.
@@ -177,12 +79,11 @@ class MapMemory:
     """
 
     def __init__(self):
-        self._internal_map: np.ndarray | None = None
-        self._fingerprint: int | None = None
-        self._previous_cell_count = 0
+        self._internal_map: "np.ndarray | None" = None
+        self._fingerprint: "int | None" = None
         self._started = False
 
-    def update(self, map_state: np.ndarray) -> bool:
+    def update(self, map_state: "np.ndarray") -> bool:
         """Merge the current observation into the internal map.
 
         Returns True if any previously-unknown cells were discovered this step.
@@ -211,63 +112,15 @@ class MapMemory:
         if self._fingerprint is not None and self._internal_map is not None:
             _MAP_CACHE[self._fingerprint] = self._internal_map.copy()
 
-    def get_map(self) -> np.ndarray:
+    def get_map(self) -> "np.ndarray":
         return self._internal_map
 
     def is_initialized(self) -> bool:
         return self._started
-```
 
-- [ ] **Step 2: Verify MapMemory standalone**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import MapMemory, _MAP_CACHE
-_MAP_CACHE.clear()
-
-mm = MapMemory()
-obs = np.array([[1,1,1],[1,0,1],[1,1,1]], dtype=np.int8)
-mm.update(obs)
-print('Known cells:', (mm.get_map() == 0).sum())
-print('Expected: 1')
-mm.save_to_cache()
-print('Cache size:', len(_MAP_CACHE))
-"
-```
-
-Expected: `Known cells: 1` + `Cache size: 1`
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add MapMemory with cross-match persistence"
-```
-
----
-
-### Task 3: MapAnalyzer component
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add MapAnalyzer class after MapMemory
-
-**Interfaces:**
-- Consumes: `_is_valid`, `_count_exits`, `DIRS`, `deque`
-- Produces: `MapAnalyzer` class with:
-  - `analyze(internal_map: np.ndarray) -> dict`: returns analysis dict
-  - `get_analysis() -> dict`: returns cached analysis or None
-  - Analysis dict keys: `dead_ends`, `corners`, `pockets`, `exit_counts`, `mid_row`
-
-**Purpose:** One-shot structural map analysis. Detects dead ends (1 exit), corners (2 perpendicular exits), pocket regions (clusters of low-exit cells), and exit counts for every cell.
-
-- [ ] **Step 1: Add MapAnalyzer class to agent.py**
-
-Insert after MapMemory class:
-
-```python
 # ============================================================
-# MapAnalyzer — structural map analysis
+# MapAnalyzer -- structural map analysis
 # ============================================================
 class MapAnalyzer:
     """Analyzes the known map to find dead ends, corners, and pocket regions.
@@ -276,9 +129,9 @@ class MapAnalyzer:
     """
 
     def __init__(self):
-        self._cached: dict | None = None
+        self._cached: "dict | None" = None
 
-    def analyze(self, internal_map: np.ndarray) -> dict:
+    def analyze(self, internal_map: "np.ndarray") -> dict:
         """Run full structural analysis. Returns dict with keys:
         dead_ends, corners, pockets, exit_counts, mid_row.
         """
@@ -340,66 +193,12 @@ class MapAnalyzer:
         }
         return self._cached
 
-    def get_analysis(self) -> dict | None:
+    def get_analysis(self) -> "dict | None":
         return self._cached
-```
 
-- [ ] **Step 2: Verify MapAnalyzer on the default map**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import MapAnalyzer
-from environment import Environment
-
-env = Environment()
-full_map = env.map
-
-ma = MapAnalyzer()
-result = ma.analyze(full_map)
-print('Dead ends:', len(result['dead_ends']))
-print('Corners:', len(result['corners']))
-print('Pockets:', len(result['pockets']))
-print('Mid row:', result['mid_row'])
-print('Exit counts sample:', list(result['exit_counts'].items())[:3])
-"
-```
-
-Expected: Reasonable counts (e.g., 10-30 dead ends, several corners and pockets on the default 21x19 map).
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add MapAnalyzer with dead-end/corner/pocket detection"
-```
-
----
-
-### Task 4: PathFinder component (A* + BFS)
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add PathFinder class after MapAnalyzer
-
-**Interfaces:**
-- Consumes: `DIRS`, `_manhattan`, `_is_valid`, `INF`, `deque`, `heappush`, `heappop`
-- Produces: `PathFinder` class with:
-  - `__init__(internal_map_getter: callable)`: stores a function that returns current known map
-  - `astar(start, goal) -> list[Move] | None`: A* path, returns None if unreachable
-  - `bfs_dist(a, b) -> int`: cached pair distance (INF if unreachable)
-  - `bfs_all_dists(source) -> dict`: all distances from source (cached per source)
-  - `clear_caches()`: reset per-step BFS caches
-  - `manhattan(a, b) -> int`: delegate to module helper
-
-**Purpose:** Provides pathfinding and distance computation for all other components. A* for path planning, BFS for exact distances in evaluation. BFS results are cached within a step to avoid redundant work during minimax search.
-
-- [ ] **Step 1: Add PathFinder class to agent.py**
-
-Insert after MapAnalyzer class:
-
-```python
 # ============================================================
-# PathFinder — A* pathfinding + BFS distance caching
+# PathFinder -- A* pathfinding + BFS distance caching
 # ============================================================
 class PathFinder:
     """A* for pathfinding, BFS for exact distance computations.
@@ -411,15 +210,15 @@ class PathFinder:
     def __init__(self, map_getter):
         """map_getter: callable that returns the current known np.ndarray map."""
         self._map_getter = map_getter
-        self._bfs_source_cache: dict[tuple, dict] = {}
-        self._pair_cache: dict[tuple, int] = {}
+        self._bfs_source_cache: dict = {}
+        self._pair_cache: dict = {}
 
     @property
-    def _map(self) -> np.ndarray:
+    def _map(self) -> "np.ndarray":
         return self._map_getter()
 
     # ---- A* ----------------------------------------------------------------
-    def astar(self, start: tuple, goal: tuple) -> list | None:
+    def astar(self, start: tuple, goal: tuple) -> "list | None":
         """Return list of Move from start to goal, or None if unreachable."""
         if start == goal:
             return []
@@ -462,7 +261,7 @@ class PathFinder:
             self._pair_cache[key] = all_dists.get(b, INF)
         return self._pair_cache[key]
 
-    def bfs_all_dists(self, source: tuple) -> dict[tuple, int]:
+    def bfs_all_dists(self, source: tuple) -> dict:
         """BFS from source to all reachable known cells. Cached per source."""
         if source not in self._bfs_source_cache:
             m = self._map
@@ -486,59 +285,10 @@ class PathFinder:
     @staticmethod
     def manhattan(a: tuple, b: tuple) -> int:
         return _manhattan(a, b)
-```
 
-- [ ] **Step 2: Verify PathFinder on the default map**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import PathFinder
-from environment import Environment
-
-env = Environment()
-full_map = env.map
-
-pf = PathFinder(lambda: full_map)
-path = pf.astar((1,1), (19,19))
-print('A* path length:', len(path) if path else 'None')
-print('BFS dist (1,1)->(19,19):', pf.bfs_dist((1,1), (19,19)))
-dists = pf.bfs_all_dists((10,10))
-print('Cells reachable from (10,10):', len(dists))
-"
-```
-
-Expected: A* path exists, BFS distance matches Manhattan bound, 100+ reachable cells.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add PathFinder with A* and cached BFS"
-```
-
----
-
-### Task 5: GhostProbability component
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add GhostProbability class after PathFinder
-
-**Interfaces:**
-- Consumes: `MapAnalyzer.get_analysis()`, `PathFinder.bfs_dist()`, `_manhattan`
-- Produces: `GhostProbability` class with:
-  - `__init__(analyzer: MapAnalyzer, pathfinder: PathFinder)`
-  - `compute(pacman_pos: tuple) -> list[tuple]`: returns list of `(row, col)` sorted by descending probability
-
-**Purpose:** When the ghost is hidden, estimates a probability distribution over all known reachable cells. Weights dead ends (×5), corners (×3), upper half (×3), pockets (×2), and applies inverse distance from Pacman.
-
-- [ ] **Step 1: Add GhostProbability class to agent.py**
-
-Insert after PathFinder class:
-
-```python
 # ============================================================
-# GhostProbability — weighted distribution over hiding spots
+# GhostProbability -- weighted distribution over hiding spots
 # ============================================================
 class GhostProbability:
     """Estimates where the ghost is likely hiding when out of sight.
@@ -550,7 +300,7 @@ class GhostProbability:
         self._analyzer = analyzer
         self._pathfinder = pathfinder
 
-    def compute(self, pacman_pos: tuple) -> list[tuple]:
+    def compute(self, pacman_pos: tuple) -> list:
         """Return list of (row, col) sorted by descending ghost probability."""
         analysis = self._analyzer.get_analysis()
         if analysis is None:
@@ -563,24 +313,24 @@ class GhostProbability:
         exit_counts = analysis["exit_counts"]
 
         # Build pocket membership lookup
-        pocket_of: dict[tuple, int] = {}
+        pocket_of: dict = {}
         for pid, region in pockets.items():
             for cell in region:
                 pocket_of[cell] = pid
 
         # Score every known empty cell
-        scored: list[tuple[float, tuple]] = []
+        scored: list = []
         for pos, _ in exit_counts.items():
             score = 1.0
 
             if pos[0] < mid_row:
-                score *= 3.0
+                score *= 8.0
             if pos in dead_ends:
                 score *= 5.0
             if pos in corners:
-                score *= 3.0
+                score *= 7.0
             if pos in pocket_of:
-                score *= 2.0
+                score *= 10.0
 
             # Slight inverse distance: ghost unlikely to be right next to Pacman
             dist = _manhattan(pacman_pos, pos)
@@ -590,63 +340,10 @@ class GhostProbability:
 
         scored.sort()
         return [pos for _, pos in scored]
-```
 
-- [ ] **Step 2: Verify GhostProbability on default map**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import MapAnalyzer, PathFinder, GhostProbability
-from environment import Environment
-
-env = Environment()
-full_map = env.map
-
-ma = MapAnalyzer()
-ma.analyze(full_map)
-
-pf = PathFinder(lambda: full_map)
-
-gp = GhostProbability(ma, pf)
-top = gp.compute((1, 1))
-print('Top 5 ghost hiding spots:', top[:5])
-print('Total scored cells:', len(top))
-"
-```
-
-Expected: Top spots should include upper-half dead ends and corners.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add GhostProbability with weighted hiding-spot estimation"
-```
-
----
-
-### Task 6: MinimaxEngine component
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add MinimaxEngine class after GhostProbability
-
-**Interfaces:**
-- Consumes: `MapAnalyzer.get_analysis()`, `PathFinder`, `DIRS`, `INF`, `Move`
-- Produces: `MinimaxEngine` class with:
-  - `__init__(analyzer, pathfinder, pacman_speed)`
-  - `search(pac_pos, ghost_pos) -> tuple[Move, int]`: returns best (move, steps) action
-  - Internal: `_max_node`, `_min_node`, `_evaluate`, `_pacman_actions`, `_apply_action`, `_scored_ghost_moves`, `_aligned_with_pacman`, `_perpendicular_to`
-
-**Purpose:** 6-ply minimax with alpha-beta pruning. Models Pacman (max) trying to minimize distance, Ghost (min) trying to maximize distance. Uses BFS distances for evaluation. Ghost move scoring includes dead-end, corner, and perpendicular bonuses.
-
-- [ ] **Step 1: Add MinimaxEngine class to agent.py**
-
-Insert after GhostProbability class:
-
-```python
 # ============================================================
-# MinimaxEngine — 6-ply alpha-beta adversarial search
+# MinimaxEngine -- 6-ply alpha-beta adversarial search
 # ============================================================
 class MinimaxEngine:
     """6-ply minimax with alpha-beta pruning.
@@ -659,7 +356,7 @@ class MinimaxEngine:
         self._analyzer = analyzer
         self._pf = pathfinder
         self._pacman_speed = max(1, int(pacman_speed))
-        self._depth = 6  # fixed 6 plies
+        self._depth = 6
 
     def search(self, pac_pos: tuple, ghost_pos: tuple) -> tuple:
         """Return best Pacman action as (Move, steps)."""
@@ -706,7 +403,7 @@ class MinimaxEngine:
             if val > best:
                 best = val
             if best >= beta:
-                return best  # prune
+                return best
             alpha = max(alpha, best)
         return best
 
@@ -727,7 +424,7 @@ class MinimaxEngine:
             if val < best:
                 best = val
             if best <= alpha:
-                return best  # prune
+                return best
             beta = min(beta, best)
         return best
 
@@ -744,10 +441,25 @@ class MinimaxEngine:
 
     # ---- Ghost move scoring ----------------------------------------------
     def _scored_ghost_moves(self, pac_pos, ghost_pos):
+        """Simulate ghost's best evasive move.
+        Ghost maximizes: distance from Pacman + good exits + avoiding traps."""
         analysis = self._analyzer.get_analysis()
         dead_ends = analysis["dead_ends"] if analysis else set()
         corners = analysis["corners"] if analysis else set()
         exit_counts = analysis["exit_counts"] if analysis else {}
+        pockets = analysis["pockets"] if analysis else {}
+
+        # Build pocket membership
+        pocket_of = {}
+        for pid, region in pockets.items():
+            for cell in region:
+                pocket_of[cell] = pid
+
+        # Calculate Pacman's best reach after 1 step (for look-ahead evasion)
+        pac_actions = self._pacman_actions(pac_pos)
+        pac_reach = {pac_pos}
+        for action in pac_actions:
+            pac_reach.add(self._apply_action(pac_pos, action))
 
         aligned = self._aligned_with_pacman(ghost_pos, pac_pos)
         perpendicular = self._perpendicular_to(ghost_pos, pac_pos) if aligned else set()
@@ -761,13 +473,30 @@ class MinimaxEngine:
                 if not _is_valid(nxt, self._pf._map):
                     continue
 
+            # Base: maximize BFS distance from Pacman
             dist = self._pf.bfs_dist(pac_pos, nxt)
             exits = exit_counts.get(nxt, 0)
-            score = dist * 10 + exits * 3
+
+            # Look-ahead: worst-case distance if Pacman moves optimally
+            min_dist = INF
+            for r in pac_reach:
+                d = self._pf.bfs_dist(r, nxt)
+                if d < min_dist:
+                    min_dist = d
+
+            score = dist * 8 + min_dist * 4 + exits * 3
+
+            # Bonuses for hiding spots
             if nxt in dead_ends:
-                score += 30
+                # Dead end is good ONLY if Pacman can't reach it quickly
+                if min_dist > 3:
+                    score += 40
+                else:
+                    score -= 20  # trap! avoid backing into a dead end
             if nxt in corners:
                 score += 15
+            if nxt in pocket_of:
+                score += 10
             if mv in perpendicular:
                 score += 50
 
@@ -820,128 +549,234 @@ class MinimaxEngine:
                 break
             r, c = nr, nc
         return (r, c)
-```
 
-- [ ] **Step 2: Verify MinimaxEngine produces valid moves**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import MapAnalyzer, PathFinder, MinimaxEngine, _is_valid
-from environment import Environment
-
-env = Environment()
-full_map = env.map
-
-ma = MapAnalyzer()
-ma.analyze(full_map)
-pf = PathFinder(lambda: full_map)
-engine = MinimaxEngine(ma, pf, pacman_speed=1)
-
-# Test with pacman at default start, ghost nearby
-pac_pos = env.default_pacman_start
-ghost_pos = (pac_pos[0] + 2, pac_pos[1])
-
-action = engine.search(pac_pos, ghost_pos)
-print('Minimax action:', action)
-print('Valid move type:', isinstance(action, tuple))
-"
-```
-
-Expected: Returns a valid (Move, steps) tuple.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add MinimaxEngine with 6-ply alpha-beta search"
-```
-
----
-
-### Task 7: SweepPlanner component
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add SweepPlanner class after MinimaxEngine
-
-**Interfaces:**
-- Consumes: `GhostProbability`, `PathFinder`, `MapMemory`
-- Produces: `SweepPlanner` class with:
-  - `__init__(ghost_prob: GhostProbability, pathfinder: PathFinder, map_memory: MapMemory)`
-  - `next_move(pacman_pos: tuple) -> Move`: returns best move toward highest-probability unexplored cell
-
-**Purpose:** Systematic exploration when ghost is hidden. Uses GhostProbability to pick the best cell to explore, then A* to navigate there. Maintains a cooldown list of recently visited cells to prevent oscillation.
-
-- [ ] **Step 1: Add SweepPlanner class to agent.py**
-
-Insert after MinimaxEngine class:
-
-```python
 # ============================================================
-# SweepPlanner — systematic exploration when ghost is hidden
+# SweepPlanner -- systematic exploration when ghost is hidden
 # ============================================================
 class SweepPlanner:
     """Plans systematic exploration using the ghost probability distribution.
 
     Picks the highest-probability unknown-adjacent cell, navigates to it
     via A*, and maintains a cooldown on recently visited cells.
+    When the map is fully explored, cycles through hiding spots
+    instead of random wandering.
     """
 
     def __init__(self, ghost_prob: GhostProbability, pathfinder: PathFinder, map_memory: MapMemory):
         self._ghost_prob = ghost_prob
         self._pf = pathfinder
         self._map_memory = map_memory
-        self._recent_cooldown: list[tuple] = []  # last 20 visited frontier cells
+        self._recent_cooldown: list = []
+        self._visit_count: dict = {}
         self._cooldown_size = 20
-        self._current_path: list | None = None
-        self._current_target: tuple | None = None
+        self._current_path: "list | None" = None
+        self._current_target: "tuple | None" = None
+        self._patrol_candidates: list = []
+        self._patrol_index = 0
+        self._last_pacman_pos: tuple | None = None
+        self._upper_only_steps = 0  # steps spent in upper-half-only mode
 
     def next_move(self, pacman_pos: tuple) -> Move:
-        """Return the next move to systematically explore the map."""
+        """Return the next move to systematically explore the map.
+
+        Priority queue for upper-half hiding spots:
+          1. Corners & pockets in the zone nearest Pacman (left/middle/right)
+          2. Other corners & pockets in remaining upper-half zones
+          3. Dead ends anywhere in upper half
+          4. Lower-half cells (only after upper is exhausted)
+        """
+        self._last_pacman_pos = pacman_pos
+
         # If we have a current path, continue following it
         if self._current_path:
             move = self._current_path.pop(0)
-            # Revalidate: is the path still walkable?
             next_pos = (pacman_pos[0] + move.value[0], pacman_pos[1] + move.value[1])
             m = self._pf._map
             if _is_valid(next_pos, m):
                 return move
-            # Path invalidated, replan
             self._current_path = None
             self._current_target = None
 
-        # Get probability-ranked hiding spots
-        candidates = self._ghost_prob.compute(pacman_pos)
         m = self._pf._map
+        has_unknown = (m == -1).any()
+        h, w = m.shape
+        analysis = self._ghost_prob._analyzer.get_analysis()
+        mid_row = analysis["mid_row"] if analysis else h // 2
 
-        for cell in candidates:
-            if cell in self._recent_cooldown:
-                continue
+        # Zone boundaries for upper half
+        left_max = w // 3
+        right_min = 2 * w // 3
 
-            # Check if cell is adjacent to unknown (-1) region
-            h, w = m.shape
-            r, c = cell
-            borders_unknown = False
-            for mv in DIRS:
-                nr, nc = r + mv.value[0], c + mv.value[1]
-                if 0 <= nr < h and 0 <= nc < w and m[nr, nc] == -1:
-                    borders_unknown = True
-                    break
+        # Collect upper-half hiding spots by zone
+        dead_ends = analysis["dead_ends"] if analysis else set()
+        corners = analysis["corners"] if analysis else set()
+        pockets = analysis["pockets"] if analysis else {}
 
-            if not borders_unknown:
-                continue
+        # Build pocket membership
+        pocket_of = {}
+        for pid, region in pockets.items():
+            for cell in region:
+                pocket_of[cell] = pid
 
-            # Try A* to this cell
+        # Zone classification helper
+        def _zone(cell):
+            if cell[1] < left_max:
+                return "left"
+            elif cell[1] >= right_min:
+                return "right"
+            return "middle"
+
+        # Build priority lists per zone (upper-half only, unvisited first)
+        zones = {"left": [], "middle": [], "right": []}
+        for cell in corners:
+            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+                zones[_zone(cell)].append(("corner", cell))
+        for cell in pocket_of:
+            if cell[0] < mid_row and cell not in self._recent_cooldown and self._visit_count.get(cell, 0) < 2:
+                if cell not in corners:
+                    zones[_zone(cell)].append(("pocket", cell))
+        for cell in dead_ends:
+            if cell[0] < mid_row and cell not in self._recent_cooldown:
+                if cell not in corners and cell not in pocket_of:
+                    zones[_zone(cell)].append(("dead_end", cell))
+
+        # ---- Hardcoded priority hiding spots (ghost's favorite corners) ----
+        # These are the complex corner regions the ghost most frequently uses
+        _priority_regions = [
+            # Upper-left pocket: rows 1-5, cols 1-4
+            (1, 1), (1, 2), (1, 3), (1, 4),
+            (2, 1), (2, 4), (3, 1), (3, 4),
+            (4, 1), (4, 4), (5, 1), (5, 2), (5, 3), (5, 4),
+            # Middle pocket: rows 7-9, cols 4-8
+            (7, 4), (7, 5), (7, 6),
+            (8, 4), (8, 6),
+            (9, 4), (9, 5), (9, 6), (9, 7), (9, 8),
+            # Lower-left pocket: rows 11-19, cols 1-4
+            (11, 1), (11, 2), (11, 3), (11, 4),
+            (13, 1), (13, 4), (15, 1), (15, 4),
+            (17, 1), (17, 4), (19, 1), (19, 2), (19, 3), (19, 4),
+            # Lower corridor: rows 14-15, cols 4-14
+            (14, 4), (14, 7), (14, 10), (14, 13), (14, 14),
+            (15, 4), (15, 7), (15, 10), (15, 13), (15, 14),
+            # Center pocket near row 5, col 10
+            (5, 10),
+        ]
+        _priority_set = set(_priority_regions)
+
+        # Try hardcoded priority spots first (nearest first)
+        priority_sorted = sorted(
+            [c for c in _priority_set if c not in self._recent_cooldown and c != pacman_pos],
+            key=lambda c: _manhattan(pacman_pos, c)
+        )
+        for cell in priority_sorted:
+            if has_unknown:
+                r, c = cell
+                if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                           and m[r + mv.value[0], c + mv.value[1]] == -1
+                           for mv in DIRS):
+                    continue
             path = self._pf.astar(pacman_pos, cell)
             if path:
                 self._current_target = cell
                 self._current_path = list(path)
                 self._add_cooldown(cell)
-                move = self._current_path.pop(0)
-                return move
+                return self._current_path.pop(0)
 
-        # Fallback: nearest frontier (known cell adjacent to unknown)
-        return self._fallback_frontier(pacman_pos)
+        # Determine which zone Pacman is in (or nearest to)
+        pac_zone = _zone(pacman_pos)
+        zone_order = [pac_zone] + [z for z in ["left", "middle", "right"] if z != pac_zone]
+
+        # Helper: get freshness score
+        def _freshness(cell):
+            r, c = cell
+            fresh = 0
+            for mv in DIRS:
+                nr, nc = r + mv.value[0], c + mv.value[1]
+                if _is_valid((nr, nc), m) and (nr, nc) not in self._recent_cooldown:
+                    fresh += 1
+            return fresh
+
+        # Helper: try to A* to the best cell from a list of typed cells
+        def _try_typed(typed_cells):
+            # Sort: type priority (corner > pocket > dead_end), then freshness
+            type_order = {"corner": 0, "pocket": 1, "dead_end": 2}
+            scored = [(type_order[t], -_freshness(c), -_manhattan(pacman_pos, c), c)
+                      for t, c in typed_cells if c != pacman_pos]
+            scored.sort()
+            for _, _, _, cell in scored:
+                if has_unknown:
+                    r, c = cell
+                    if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                               and m[r + mv.value[0], c + mv.value[1]] == -1
+                               for mv in DIRS):
+                        continue
+                path = self._pf.astar(pacman_pos, cell)
+                if path:
+                    self._current_target = cell
+                    self._current_path = list(path)
+                    self._add_cooldown(cell)
+                    return self._current_path.pop(0)
+            return None
+
+        # ---- Try each zone in order ----
+        for zone in zone_order:
+            result = _try_typed(zones[zone])
+            if result is not None:
+                return result
+
+        # ---- Fallback: all upper-half cells (non-zone-classified) ----
+        candidates = self._ghost_prob.compute(pacman_pos)
+        for cell in candidates:
+            if cell[0] >= mid_row:
+                continue
+            if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
+                continue
+            if has_unknown:
+                r, c = cell
+                if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                           and m[r + mv.value[0], c + mv.value[1]] == -1
+                           for mv in DIRS):
+                    continue
+            path = self._pf.astar(pacman_pos, cell)
+            if path:
+                self._current_target = cell
+                self._current_path = list(path)
+                self._add_cooldown(cell)
+                return self._current_path.pop(0)
+
+        # ---- Lower half (only after upper exhausted or timeout) ----
+        upper_exhausted = all(c in self._recent_cooldown or c == pacman_pos
+                              for c in candidates if c[0] < mid_row)
+        if upper_exhausted:
+            self._upper_only_steps = 0
+        else:
+            self._upper_only_steps += 1
+
+        if upper_exhausted or self._upper_only_steps >= 30:
+            for cell in candidates:
+                if cell[0] < mid_row:
+                    continue
+                if cell in self._recent_cooldown or cell == pacman_pos or self._visit_count.get(cell, 0) >= 2:
+                    continue
+                if has_unknown:
+                    r, c = cell
+                    if not any(0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
+                               and m[r + mv.value[0], c + mv.value[1]] == -1
+                               for mv in DIRS):
+                        continue
+                path = self._pf.astar(pacman_pos, cell)
+                if path:
+                    self._current_target = cell
+                    self._current_path = list(path)
+                    self._add_cooldown(cell)
+                    return self._current_path.pop(0)
+
+        # Absolute fallback
+        if has_unknown:
+            return self._fallback_frontier(pacman_pos)
+        else:
+            return self._fallback_random(pacman_pos)
 
     def _fallback_frontier(self, pacman_pos: tuple) -> Move:
         """Find the nearest known cell adjacent to unknown, move toward it."""
@@ -954,7 +789,6 @@ class SweepPlanner:
             for c in range(w):
                 if m[r, c] != 0:
                     continue
-                # Check if borders unknown
                 borders = any(
                     0 <= r + mv.value[0] < h and 0 <= c + mv.value[1] < w
                     and m[r + mv.value[0], c + mv.value[1]] == -1
@@ -973,85 +807,44 @@ class SweepPlanner:
                         best_move = path[0]
 
         if best_move == Move.STAY:
-            # Truly stuck: pick any valid random move
             valid = [mv for mv in DIRS
                      if _is_valid((pacman_pos[0] + mv.value[0], pacman_pos[1] + mv.value[1]), m)]
             best_move = random.choice(valid) if valid else Move.STAY
 
         return best_move
 
+    def _fallback_random(self, pacman_pos: tuple) -> Move:
+        """When map is fully known, pick a hiding spot to patrol toward."""
+        m = self._pf._map
+        candidates = self._ghost_prob.compute(pacman_pos)
+
+        for cell in candidates:
+            if cell == pacman_pos:
+                continue
+            path = self._pf.astar(pacman_pos, cell)
+            if path:
+                self._current_path = list(path)
+                self._add_cooldown(cell)
+                return self._current_path.pop(0)
+
+        valid = [mv for mv in DIRS
+                 if _is_valid((pacman_pos[0] + mv.value[0], pacman_pos[1] + mv.value[1]), m)]
+        return random.choice(valid) if valid else Move.STAY
+
     def _add_cooldown(self, cell: tuple):
         self._recent_cooldown.append(cell)
         if len(self._recent_cooldown) > self._cooldown_size:
             self._recent_cooldown.pop(0)
+        self._visit_count[cell] = self._visit_count.get(cell, 0) + 1
 
     def invalidate_path(self):
         """Force replan on next move."""
         self._current_path = None
         self._current_target = None
-```
 
-- [ ] **Step 2: Verify SweepPlanner picks reasonable targets**
 
-```bash
-cd /home/ntdat/Documents/pacman/submissions/LAB2 && python -c "
-import sys; sys.path.insert(0, '../../src')
-import numpy as np
-from agent import MapMemory, MapAnalyzer, PathFinder, GhostProbability, SweepPlanner, _MAP_CACHE
-from environment import Environment
-
-_MAP_CACHE.clear()
-
-env = Environment()
-# Simulate partial map with fog
-partial = env.map.copy()
-partial[10:, :] = -1  # bottom half unknown
-
-mm = MapMemory()
-mm.update(partial)
-
-ma = MapAnalyzer()
-ma.analyze(mm.get_map())
-
-pf = PathFinder(mm.get_map)
-gp = GhostProbability(ma, pf)
-sp = SweepPlanner(gp, pf, mm)
-
-move = sp.next_move((3, 3))
-print('Sweep move:', move)
-"
-```
-
-Expected: Returns a valid Move enum (not STAY) pointing toward upper-half hiding spots.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add SweepPlanner with probability-guided exploration"
-```
-
----
-
-### Task 8: PacmanAgent orchestrator
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — add PacmanAgent class as the final class in the file
-
-**Interfaces:**
-- Consumes: All previous components (MapMemory, MapAnalyzer, PathFinder, GhostProbability, MinimaxEngine, SweepPlanner)
-- Produces: `PacmanAgent(BasePacmanAgent)` with:
-  - `__init__(**kwargs)`: wires up all components, reads pacman_speed
-  - `step(map_state, my_position, enemy_position, step_number) -> tuple[Move, int]`: main decision logic
-
-**Purpose:** Orchestrates all components. Decision tree: direct chase (A*) when ghost is close, minimax when visible and far, recent-position search when ghost was recently seen, sweep planner when ghost is hidden.
-
-- [ ] **Step 1: Add PacmanAgent class to agent.py**
-
-Insert after SweepPlanner class and replace any existing PacmanAgent:
-
-```python
 # ============================================================
-# PacmanAgent — orchestrator
+# PacmanAgent -- orchestrator
 # ============================================================
 class PacmanAgent(BasePacmanAgent):
     """Orchestrates MapMemory, MapAnalyzer, PathFinder, GhostProbability,
@@ -1064,16 +857,17 @@ class PacmanAgent(BasePacmanAgent):
         # Components (wired in first step when map is available)
         self._map_memory = MapMemory()
         self._analyzer = MapAnalyzer()
-        self._pathfinder: PathFinder | None = None
-        self._ghost_prob: GhostProbability | None = None
-        self._minimax: MinimaxEngine | None = None
-        self._sweep: SweepPlanner | None = None
+        self._pathfinder: "PathFinder | None" = None
+        self._ghost_prob: "GhostProbability | None" = None
+        self._minimax: "MinimaxEngine | None" = None
+        self._sweep: "SweepPlanner | None" = None
 
         # State tracking
-        self._last_enemy_pos: tuple | None = None
+        self._last_enemy_pos: "tuple | None" = None
         self._steps_since_seen = 0
         self._last_step_number = 0
         self._wired = False
+        self._prev_mode = None  # 'chase', 'recent', or 'sweep'
 
     def _ensure_wired(self):
         if self._wired:
@@ -1123,41 +917,59 @@ class PacmanAgent(BasePacmanAgent):
         chosen_move = Move.STAY
 
         if enemy_pos is not None:
-            # Ghost is visible
-            dist = _manhattan(my_pos, enemy_pos)
-            if dist <= 2:
-                # Close: A* direct chase
-                path = self._pathfinder.astar(my_pos, enemy_pos)
-                if path:
-                    chosen_move = path[0]
-                else:
-                    chosen_move = self._greedy_toward(my_pos, enemy_pos, internal_map)
-            else:
-                # Far: 6-ply minimax
-                try:
-                    action = self._minimax.search(my_pos, enemy_pos)
-                    chosen_move = action[0]
-                    if chosen_move == Move.STAY:
-                        path = self._pathfinder.astar(my_pos, enemy_pos)
-                        if path:
-                            chosen_move = path[0]
-                except Exception:
-                    path = self._pathfinder.astar(my_pos, enemy_pos)
-                    if path:
-                        chosen_move = path[0]
-                    else:
-                        chosen_move = self._greedy_toward(my_pos, enemy_pos, internal_map)
-        elif self._last_enemy_pos is not None and self._steps_since_seen <= 10:
-            # Recently lost sight: search around last known position
-            target = self._bias_toward_dead_end(self._last_enemy_pos)
-            path = self._pathfinder.astar(my_pos, target)
+            # Ghost is visible - directly follow enemy position
+            if self._prev_mode != 'chase':
+                self._sweep.invalidate_path()
+                self._prev_mode = 'chase'
+            path = self._pathfinder.astar(my_pos, enemy_pos)
             if path:
                 chosen_move = path[0]
             else:
-                chosen_move = self._greedy_toward(my_pos, target, internal_map)
+                chosen_move = self._greedy_toward(my_pos, enemy_pos, internal_map)
+        elif self._last_enemy_pos is not None and self._steps_since_seen <= 5:
+            # Recently lost sight: expand-search from last known position
+            if self._prev_mode != 'recent':
+                self._sweep.invalidate_path()
+                self._prev_mode = 'recent'
+
+            # Get all hiding spots, sorted by distance from last-known position
+            analysis = self._analyzer.get_analysis()
+            if analysis is not None:
+                # Build priority: dead ends near last-known, then corners, then any cell
+                search = []
+                for de in analysis["dead_ends"]:
+                    d = _manhattan(self._last_enemy_pos, de)
+                    if d <= 15:
+                        search.append((d, de))
+                search.sort()
+                for _, target in search:
+                    path = self._pathfinder.astar(my_pos, target)
+                    if path:
+                        chosen_move = path[0]
+                        break
+
+                if chosen_move == Move.STAY:
+                    for co in analysis["corners"]:
+                        d = _manhattan(self._last_enemy_pos, co)
+                        if d <= 10:
+                            path = self._pathfinder.astar(my_pos, co)
+                            if path:
+                                chosen_move = path[0]
+                                break
+
+            if chosen_move == Move.STAY:
+                target = self._bias_toward_dead_end(self._last_enemy_pos)
+                path = self._pathfinder.astar(my_pos, target)
+                if path:
+                    chosen_move = path[0]
+                else:
+                    chosen_move = self._greedy_toward(my_pos, target, internal_map)
+
         else:
-            # Ghost hidden: sweep search
-            self._sweep.invalidate_path()
+            # Ghost hidden: sweep search (only invalidate on mode entry)
+            if self._prev_mode != 'sweep':
+                self._sweep.invalidate_path()
+                self._prev_mode = 'sweep'
             try:
                 chosen_move = self._sweep.next_move(my_pos)
             except Exception:
@@ -1180,22 +992,29 @@ class PacmanAgent(BasePacmanAgent):
         return best_move
 
     def _bias_toward_dead_end(self, pos):
-        """If a dead end is within 5 BFS steps of pos, return that dead end.
-        Otherwise return pos unchanged."""
+        """BFS-expand from pos to find the nearest dead end within 8 steps.
+        If none found, return pos unchanged."""
         analysis = self._analyzer.get_analysis()
         if analysis is None:
             return pos
         dead_ends = analysis["dead_ends"]
         internal_map = self._map_memory.get_map()
 
-        best_de = pos
-        best_d = INF
-        for de in dead_ends:
-            d = _manhattan(pos, de)
-            if d <= 5 and d < best_d:
-                best_d = d
-                best_de = de
-        return best_de
+        # BFS from last known position, looking for nearest dead end
+        q = deque([(pos, 0)])
+        visited = {pos}
+        while q:
+            cur, d = q.popleft()
+            if d > 15:
+                break
+            if cur in dead_ends:
+                return cur
+            for mv in DIRS:
+                nxt = (cur[0] + mv.value[0], cur[1] + mv.value[1])
+                if nxt not in visited and _is_valid(nxt, internal_map):
+                    visited.add(nxt)
+                    q.append((nxt, d + 1))
+        return pos
 
     def _random_valid(self, pos, map_state):
         moves = [mv for mv in DIRS
@@ -1215,116 +1034,19 @@ class PacmanAgent(BasePacmanAgent):
             else:
                 break
         return steps
-```
 
-- [ ] **Step 2: Run a full game to verify basic integration**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && python arena.py --seek LAB2 --hide reference/LAB1/0 --no-viz --max-steps 50 2>&1 | head -20
-```
-
-Expected: Game runs to completion without crashes. Should show either Pacman wins or Ghost wins.
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add submissions/LAB2/agent.py && git commit -m "feat: add PacmanAgent orchestrator wiring all components"
-```
-
----
-
-### Task 9: Integration testing, edge cases, and cleanup
-
-**Files:**
-- Modify: `submissions/LAB2/agent.py` — any bug fixes found during testing
-- No new files
-
-**Purpose:** Run comprehensive tests across multiple scenarios and fix any issues. Verify all requirements from the spec are met.
-
-- [ ] **Step 1: Test basic chase against reference/LAB1/0 ghost**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && python arena.py --seek LAB2 --hide reference/LAB1/0 --no-viz --max-steps 200
-```
-
-Expected: Game completes. If ghost starts visible, Pacman should catch it within reasonable steps.
-
-- [ ] **Step 2: Test fog-of-war sweep search**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && python arena.py --seek LAB2 --hide reference/LAB1/0 --no-viz --max-steps 300 --pacman-obs-radius 5 --ghost-obs-radius 3
-```
-
-Expected: Game completes. Pacman sweeps the map systematically even when ghost is hidden.
-
-- [ ] **Step 3: Test speed multiplier**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && python arena.py --seek LAB2 --hide reference/LAB1/0 --no-viz --max-steps 100 --pacman-speed 2
-```
-
-Expected: No "exceeds maximum speed" errors. Pacman uses speed-2 moves effectively.
-
-- [ ] **Step 4: Test map cache persistence (two consecutive matches)**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && python -c "
-from arena import Arena
-# Match 1
-a = Arena('LAB2', 'reference/LAB1/0', visualize=False, max_steps=10)
-a.run()
-# Match 2 — should load cached map
-a2 = Arena('LAB2', 'reference/LAB1/0', visualize=False, max_steps=10)
-a2.run()
-print('Map cache test passed')
-"
-```
-
-Expected: Both matches complete. Second match starts with full map knowledge from cache.
-
-- [ ] **Step 5: Test against stronger reference ghosts**
-
-```bash
-cd /home/ntdat/Documents/pacman/src && for gid in 0 2 3 5; do
-  echo "--- Testing against reference/LAB1/$gid ---"
-  python arena.py --seek LAB2 --hide "reference/LAB1/$gid" --no-viz --max-steps 200 2>&1 | tail -1
-done
-```
-
-Expected: Pacman wins or at least doesn't crash against each reference ghost.
-
-- [ ] **Step 6: Fix any issues found and commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add -A && git commit -m "fix: integration fixes from comprehensive testing"
-```
-
-- [ ] **Step 7: Final verification — run all test scenarios again**
-
-Rerun steps 1-5 to confirm all pass after fixes.
-
-- [ ] **Step 8: Final commit**
-
-```bash
-cd /home/ntdat/Documents/pacman && git add -A && git commit -m "test: final integration verification complete"
-```
-
----
-
-## Verification Checklist
-
-After all tasks are complete, verify against every spec requirement:
-
-| Requirement | How to verify |
-|-------------|---------------|
-| Pure algorithm, no ML | Code review: no ML imports or training |
-| 6-ply minimax + alpha-beta | Code review: MinimaxEngine._depth = 6, alpha/beta parameters |
-| A* for pathfinding | Code review: PathFinder.astar uses heapq + Manhattan heuristic |
-| BFS for evaluation distances | Code review: PathFinder.bfs_dist / bfs_all_dists use deque BFS |
-| Ghost probability estimation | Run with fog of war, verify exploration order includes dead ends/corners |
-| Upper-half priority | Code review: GhostProbability multiplies upper-half cells by ×3 |
-| Map cache persistence | Step 4 of Task 9: two consecutive matches, second uses cache |
-| Turn-distance for speed | Code review: MinimaxEngine._evaluate uses ceil(bfs/pacman_speed) |
-| Handle enemy_position is None | Run with fog of war |
-| Speed multiplier support | Step 3 of Task 9: --pacman-speed 2 |
-| GhostAgent unchanged | Diff against original GhostAgent code |
+class GhostAgent(BaseGhostAgent):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name = "Hide-Agent"
+        self._controller = HideController(
+            log_path=kwargs.get("log_path"),
+            map_text_path=kwargs.get("map_text_path"),
+            map_jsonl_path=kwargs.get("map_jsonl_path"),
+            diagnostics_enabled=kwargs.get("diagnostics_enabled"),
+            pacman_speed=kwargs.get("pacman_speed", 2),
+            capture_distance=kwargs.get("capture_distance", 2),
+            observation_radius=kwargs.get("observation_radius", 5),
+        )
+    def step(self, map_state, my_position, enemy_position, step_number):
+        return self._controller.step(map_state, my_position, enemy_position, step_number)
