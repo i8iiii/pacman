@@ -68,12 +68,13 @@ class SearchDecision:
 
 @dataclass(frozen=True)
 class _AreaProfile:
-    """Concrete local service route used by the global priority model."""
+    """Concrete local service route used by the global priority heuristic."""
 
     entry: tuple
     exit: tuple
     turns: int
     cell_steps: int
+    complete: bool
 
 
 class SearchPlanner:
@@ -115,7 +116,9 @@ class SearchPlanner:
         even for callers that update the belief immediately afterwards.
         """
         started_at = perf_counter()
-        deadline = started_at + self.planning_limit_seconds
+        # Keep a small wall-clock reserve for post-planning route selection,
+        # decision assembly, and diagnostics in the controller.
+        deadline = started_at + max(0.0, self.planning_limit_seconds - 0.01)
         position = normalize_position(position)
         visible = frozenset(normalize_position(cell) for cell in visible_cells)
         step_number = int(step_number)
@@ -129,7 +132,9 @@ class SearchPlanner:
 
         replan_reason = None
         completed_this_step = None
-        exact = True
+        # Future requirements are deliberately resnapshotted on physical area
+        # arrival, so no full future order can be an exact execution plan.
+        exact = False
         fallback = False
 
         if self.phase == SearchPhase.SELECT_PRIORITY or self.target_area_id is None:
@@ -263,10 +268,10 @@ class SearchPlanner:
                       step_number, remaining, deadline):
         """Route-aware subset DP over concrete area-service endpoints.
 
-        Exactness is defined for this bounded concrete model: each area uses
-        one stable gateway/viewpoint entry, a measured ``plan_area_route``
-        service route for its current requirements, and that route's endpoint
-        as the source of the following real minimum-turn transition.
+        This is a route-aware heuristic, not an exact future execution plan:
+        requirements are resnapshotted on arrival and the order is replanned
+        after every completed area.  It uses stable concrete endpoints and
+        measured routes only to choose the next locked target sensibly.
         """
         ids = tuple(sorted(remaining))
         weights = {
@@ -277,6 +282,7 @@ class SearchPlanner:
         }
         profiles = {}
         initial_costs = {}
+        incomplete_profile = False
         for profile_index, area_id in enumerate(ids):
             if perf_counter() >= deadline:
                 return self._greedy_order(
@@ -307,7 +313,9 @@ class SearchPlanner:
                 exit=route.exit,
                 turns=route.turns,
                 cell_steps=route.cell_steps,
+                complete=route.complete,
             )
+            incomplete_profile = incomplete_profile or not route.complete
             if perf_counter() >= deadline:
                 return self._greedy_order(
                     ids, weights, initial_costs, {}, profiles,
@@ -367,7 +375,7 @@ class SearchPlanner:
                     if key not in states or candidate < states[key]:
                         states[key] = candidate
         best = min(state for (mask, _), state in states.items() if mask == full_mask)
-        return best[3], True, False
+        return best[3], False, incomplete_profile
 
     def _greedy_order(self, ids, weights, initial_costs, pair_costs, profiles):
         unvisited = set(ids)
