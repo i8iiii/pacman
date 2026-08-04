@@ -32,6 +32,11 @@ class SeekDiagnostics:
         if self.enabled:
             self._safely_prepare_log()
 
+    def reset_for_match(self):
+        """Start a fresh diagnostic log for a newly detected match."""
+        if self.enabled:
+            self._safely_prepare_log()
+
     def _safely_prepare_log(self):
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)

@@ -64,6 +64,7 @@ class SeekController:
                 and step_number < self._last_step_number
             ):
                 self._reset_match_state()
+                self.diagnostics.reset_for_match()
                 transition_reasons.append("new_match")
 
             self._last_step_number = step_number
