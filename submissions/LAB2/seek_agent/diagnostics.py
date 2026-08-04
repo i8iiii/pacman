@@ -69,18 +69,15 @@ class SeekDiagnostics:
                 f"cache_hit: {bool(cache_hit)}",
                 f"error: {analysis.error or 'none'}",
                 "",
-                "MAP (# = wall, other symbols = area IDs)",
+                "MAP (### = wall, centered value = area ID)",
             ]
-            for row in range(observation.shape[0]):
-                rendered = []
-                for column in range(observation.shape[1]):
-                    position = (row, column)
-                    if observation[position] == 1:
-                        rendered.append("#")
-                    else:
-                        area_id = analysis.cell_to_area.get(position)
-                        rendered.append(symbols.get(area_id, "?"))
-                lines.append("".join(rendered))
+            lines.extend(
+                _render_area_grid(
+                    observation,
+                    analysis.cell_to_area,
+                    symbols,
+                )
+            )
 
             lines.extend(("", "AREAS"))
             for area in analysis.areas:
@@ -194,3 +191,27 @@ def _area_symbol(area_id):
     if area_id is None or area_id < 0 or area_id >= len(alphabet):
         return "?"
     return alphabet[area_id]
+
+
+def _render_area_grid(observation, cell_to_area, symbols):
+    rows, columns = observation.shape
+    column_header = "    " + "".join(
+        f"{column:02d}".center(3) + " "
+        for column in range(columns)
+    )
+    border = "   +" + "+".join("---" for _ in range(columns)) + "+"
+    rendered = [column_header.rstrip(), border]
+
+    for row in range(rows):
+        cells = []
+        for column in range(columns):
+            position = (row, column)
+            if observation[position] == 1:
+                cells.append("###")
+                continue
+            area_id = cell_to_area.get(position)
+            cells.append(symbols.get(area_id, "?").center(3))
+        rendered.append(f"{row:02d} |" + "|".join(cells) + "|")
+        rendered.append(border)
+
+    return rendered
