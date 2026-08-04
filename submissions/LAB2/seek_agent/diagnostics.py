@@ -167,6 +167,7 @@ class SeekDiagnostics:
         reachable_cells=(),
         ghost_belief=None,
         search_decision=None,
+        investigation_decision=None,
         error=None,
     ):
         if not self.enabled:
@@ -224,6 +225,9 @@ class SeekDiagnostics:
                     reachable_cells,
                 ),
                 "search": _search_summary(search_decision),
+                "investigation": _investigation_summary(
+                    investigation_decision,
+                ),
                 "error": error,
             }
             with self.log_path.open("a", encoding="utf-8") as log_file:
@@ -421,6 +425,84 @@ def _fallback_fields(decision):
         "fallback": False,
         "fallback_scope": None,
         "fallback_meaning": None,
+    }
+
+
+def _investigation_summary(decision):
+    """Return the evidence and scoring behind INVESTIGATING actions."""
+    if decision is None:
+        return {
+            "decision_made": False,
+            "phase": None,
+            "last_seen_position": None,
+            "arrival_step": None,
+            "investigation_turn": None,
+            "turn_limit": None,
+            "turns_remaining_after_action": None,
+            "possible_count": 0,
+            "possible_cells": [],
+            "considered_actions": [],
+            "chosen_action": None,
+            "chosen_endpoint": None,
+            "target": None,
+            "route": [],
+            "selection_reason": None,
+            "finished_reason": None,
+        }
+
+    considered = [
+        {
+            "move": score.move.name,
+            "steps": int(score.steps),
+            "endpoint": _position(score.endpoint),
+            "confirmable_count": len(score.confirmable_positions),
+            "confirmable_cells": [
+                _position(cell)
+                for cell in sorted(score.confirmable_positions)
+            ],
+            "nearest_candidate_distance": score.nearest_candidate_distance,
+        }
+        for score in decision.considered_actions
+    ]
+    if decision.finished_reason is not None:
+        selection_reason = decision.finished_reason
+    elif decision.phase.value == "transit":
+        selection_reason = "shortest_route_to_last_seen"
+    elif len(decision.possible_positions) == 1:
+        selection_reason = "single_candidate_pursuit"
+    elif any(item["confirmable_count"] for item in considered):
+        selection_reason = "maximum_current_candidate_coverage"
+    else:
+        selection_reason = "nearest_current_candidate"
+
+    turn = decision.investigation_turn
+    remaining = (
+        None
+        if turn is None
+        else max(0, int(decision.turn_limit) - int(turn))
+    )
+    return {
+        "decision_made": True,
+        "phase": decision.phase.value,
+        "last_seen_position": _position(decision.last_seen_position),
+        "arrival_step": decision.arrival_step,
+        "investigation_turn": turn,
+        "turn_limit": int(decision.turn_limit),
+        "turns_remaining_after_action": remaining,
+        "possible_count": len(decision.possible_positions),
+        "possible_cells": [
+            _position(cell) for cell in sorted(decision.possible_positions)
+        ],
+        "considered_actions": considered,
+        "chosen_action": {
+            "move": decision.chosen_action[0].name,
+            "steps": int(decision.chosen_action[1]),
+        },
+        "chosen_endpoint": _position(decision.chosen_endpoint),
+        "target": _position(decision.target),
+        "route": [_position(cell) for cell in decision.route],
+        "selection_reason": selection_reason,
+        "finished_reason": decision.finished_reason,
     }
 
 

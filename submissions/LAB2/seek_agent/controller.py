@@ -10,6 +10,7 @@ from environment import Move
 from .areas import AreaAnalyzer
 from .belief import GhostBelief
 from .diagnostics import SeekDiagnostics
+from .investigation import InvestigationPlanner
 from .search import SearchPlanner
 from .spatial import (
     move_for_delta,
@@ -51,6 +52,9 @@ class SeekController:
         self._last_step_number = None
         self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
+        self.investigation_planner = InvestigationPlanner(
+            pacman_speed=self.pacman_speed,
+        )
         self.search_planner = SearchPlanner(pacman_speed=self.pacman_speed)
         self._reset_match_state()
 
@@ -61,6 +65,7 @@ class SeekController:
         self.last_seen_step = None
         self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
+        self.investigation_planner.reset()
         self.search_planner.reset(analysis)
 
     def step(self, map_state, my_position, enemy_position, step_number):
@@ -70,6 +75,7 @@ class SeekController:
         target = None
         path = None
         search_decision = None
+        investigation_decision = None
         visible_cells = frozenset()
         error = None
         move, move_steps = Move.STAY, 1
@@ -119,7 +125,10 @@ class SeekController:
             if enemy_position is not None:
                 if self.mode != SeekMode.CHASING:
                     transition_reasons.append("ghost_visible")
+                    if self.mode == SeekMode.SEARCHING:
+                        self.search_planner.interrupt("ghost_visible")
                 self.mode = SeekMode.CHASING
+                self.investigation_planner.reset()
                 self.last_seen_position = enemy_position
                 self.last_seen_step = step_number
                 target = enemy_position
@@ -128,22 +137,46 @@ class SeekController:
             elif self.last_seen_position is not None:
                 if self.mode != SeekMode.INVESTIGATING:
                     transition_reasons.append("ghost_lost")
-                self.mode = SeekMode.INVESTIGATING
-                target = self.last_seen_position
-                path = shortest_path(topology, my_position, target)
-                move, move_steps = self._action_from_path(path)
+                investigation_decision = self.investigation_planner.decide(
+                    topology,
+                    my_position,
+                    self.last_seen_position,
+                    self.ghost_belief.possible_positions,
+                    step_number,
+                )
+                if investigation_decision.finished_reason is None:
+                    self.mode = SeekMode.INVESTIGATING
+                    target = investigation_decision.target
+                    path = list(investigation_decision.route)
+                    move, move_steps = investigation_decision.chosen_action
+                else:
+                    reason = investigation_decision.finished_reason
+                    transition_reasons.append(f"investigation_{reason}")
+                    self.mode = SeekMode.SEARCHING
+                    self.last_seen_position = None
+                    self.last_seen_step = None
+                    self.investigation_planner.reset()
+                    self.search_planner.interrupt(
+                        f"investigation_{reason}",
+                    )
+                    search_decision = self._decide_search(
+                        topology,
+                        my_position,
+                        visible_cells,
+                        step_number,
+                    )
+                    target = search_decision.entry
+                    path = list(search_decision.route)
+                    move, move_steps = search_decision.chosen_action
             else:
                 if self.mode != SeekMode.SEARCHING:
                     transition_reasons.append("no_ghost_information")
                 self.mode = SeekMode.SEARCHING
-                search_decision = self.search_planner.decide(
+                search_decision = self._decide_search(
                     topology,
-                    self.area_analysis,
-                    self.ghost_belief,
                     my_position,
-                    visible_cells=visible_cells,
-                    step_number=step_number,
-                    reachable_cells=self.reachable_component,
+                    visible_cells,
+                    step_number,
                 )
                 target = search_decision.entry
                 path = list(search_decision.route)
@@ -189,6 +222,7 @@ class SeekController:
             reachable_cells=self.reachable_component,
             ghost_belief=self.ghost_belief,
             search_decision=search_decision,
+            investigation_decision=investigation_decision,
             error=error,
         )
         return move, move_steps
@@ -233,3 +267,20 @@ class SeekController:
             straight_steps += 1
 
         return move, straight_steps
+
+    def _decide_search(
+        self,
+        topology,
+        my_position,
+        visible_cells,
+        step_number,
+    ):
+        return self.search_planner.decide(
+            topology,
+            self.area_analysis,
+            self.ghost_belief,
+            my_position,
+            visible_cells=visible_cells,
+            step_number=step_number,
+            reachable_cells=self.reachable_component,
+        )

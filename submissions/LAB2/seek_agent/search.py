@@ -120,6 +120,11 @@ class SearchPlanner:
         self._local_route_fallback = False
         self._last_replan_reason = "new_match"
 
+    def interrupt(self, reason="behavior_interrupted"):
+        """Drop a stale active route while preserving completed-area state."""
+        self._clear_active_area()
+        self._last_replan_reason = str(reason)
+
     def decide(self, topology, analysis, belief, position, visible_cells=(),
                step_number=0, reachable_cells=None):
         """Return the next deterministic Search decision.
