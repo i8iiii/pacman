@@ -11,7 +11,6 @@ PACMAN_SEEK_DIAGNOSTICS = True
 _ENABLED_VALUES = {"1", "true", "yes", "on"}
 _DISABLED_VALUES = {"0", "false", "no", "off"}
 
-
 def _diagnostics_enabled_from_environment():
     configured = os.getenv("PACMAN_SEEK_DIAGNOSTICS")
     if configured is None:
