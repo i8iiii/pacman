@@ -71,6 +71,8 @@ class SeekDiagnostics:
         reachable_cells=None,
         ghost_belief=None,
         step_number=None,
+        target_area_id=None,
+        my_position=None,
     ):
         """Write the human-readable map areas and live scouting freshness."""
         if not self.enabled or analysis is None:
@@ -106,7 +108,8 @@ class SeekDiagnostics:
                 f"fresh_observed_cells: {len(fresh_cells)}",
                 "",
                 (
-                    "MAP (### = wall, / = seen and fresh, "
+                    "MAP (### = wall, P = Pacman, / = seen and fresh, "
+                    "<value> = current target area, "
                     "value = unseen/expired area ID)"
                 ),
             ]
@@ -116,6 +119,8 @@ class SeekDiagnostics:
                     analysis.cell_to_area,
                     symbols,
                     fresh_cells,
+                    target_area_id,
+                    my_position,
                 )
             )
 
@@ -255,6 +260,8 @@ class SeekDiagnostics:
                 reachable_cells=reachable_cells,
                 ghost_belief=ghost_belief,
                 step_number=step_number,
+                target_area_id=target_area_id,
+                my_position=my_position,
             )
         except Exception:
             # Diagnostics must never alter or terminate the agent's decisions.
@@ -612,8 +619,20 @@ def _fresh_observed_cells(observation, belief, step_number):
     return frozenset(fresh)
 
 
-def _render_area_grid(observation, cell_to_area, symbols, fresh_cells=()):
+def _render_area_grid(
+    observation,
+    cell_to_area,
+    symbols,
+    fresh_cells=(),
+    target_area_id=None,
+    my_position=None,
+):
     fresh_cells = frozenset(fresh_cells)
+    pacman_position = (
+        None
+        if my_position is None
+        else (int(my_position[0]), int(my_position[1]))
+    )
     rows, columns = observation.shape
     column_header = "    " + "".join(
         f"{column:02d}".center(3) + " "
@@ -629,10 +648,16 @@ def _render_area_grid(observation, cell_to_area, symbols, fresh_cells=()):
             if observation[position] == 1:
                 cells.append("###")
                 continue
+            if position == pacman_position:
+                cells.append(" P ")
+                continue
             if position in fresh_cells:
                 cells.append(" / ")
                 continue
             area_id = cell_to_area.get(position)
+            if area_id == target_area_id:
+                cells.append(f"<{symbols.get(area_id, '?')}>")
+                continue
             cells.append(symbols.get(area_id, "?").center(3))
         rendered.append(f"{row:02d} |" + "|".join(cells) + "|")
         rendered.append(border)
