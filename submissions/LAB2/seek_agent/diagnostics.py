@@ -60,13 +60,23 @@ class SeekDiagnostics:
         except Exception:
             self.enabled = False
 
-    def write_area_analysis(self, analysis, map_state, cache_hit):
+    def write_area_analysis(
+        self,
+        analysis,
+        map_state,
+        cache_hit,
+        reachable_cells=None,
+    ):
         """Write a static, human-readable representation of the map areas."""
         if not self.enabled or analysis is None:
             return
 
         try:
             observation = np.asarray(map_state)
+            reachability = _reachability_summary(
+                analysis,
+                reachable_cells,
+            )
             symbols = {
                 area.area_id: _area_symbol(area.area_id)
                 for area in analysis.areas
@@ -79,6 +89,9 @@ class SeekDiagnostics:
                 f"analysis_seconds: {analysis.analysis_seconds:.6f}",
                 f"cache_hit: {bool(cache_hit)}",
                 f"error: {analysis.error or 'none'}",
+                f"reachable_cell_count: {reachability['reachable_cell_count']}",
+                f"reachable_area_ids: {reachability['reachable_area_ids']}",
+                f"excluded_area_ids: {reachability['excluded_area_ids']}",
                 "",
                 "MAP (### = wall, centered value = area ID)",
             ]
@@ -99,6 +112,14 @@ class SeekDiagnostics:
                             f"{area.position_label}"
                         ),
                         f"  cells: {len(area.cells)}",
+                        (
+                            "  reachable_from_spawn: "
+                            f"{'yes' if area.area_id in reachability['reachable_area_ids'] else 'no'}"
+                        ),
+                        (
+                            "  excluded_from_search: "
+                            f"{'yes' if area.area_id in reachability['excluded_area_ids'] else 'no'}"
+                        ),
                         (
                             "  centroid: "
                             f"({area.centroid[0]:.2f}, {area.centroid[1]:.2f})"
@@ -143,6 +164,7 @@ class SeekDiagnostics:
         current_area_id=None,
         target_area_id=None,
         visible_cells=(),
+        reachable_cells=(),
         ghost_belief=None,
         search_decision=None,
         error=None,
@@ -190,10 +212,16 @@ class SeekDiagnostics:
                 "visible_mask": visible_mask.tolist(),
                 "visible_cells": [list(cell) for cell in visible_cells],
                 "topology": topology_array.tolist(),
+                "reachability": _reachability_summary(
+                    area_analysis,
+                    reachable_cells,
+                    ghost_belief,
+                ),
                 "ghost_belief": _belief_summary(
                     ghost_belief,
                     area_analysis,
                     step_number,
+                    reachable_cells,
                 ),
                 "search": _search_summary(search_decision),
                 "error": error,
@@ -211,7 +239,46 @@ def _position(value):
     return [int(value[0]), int(value[1])]
 
 
-def _belief_summary(belief, area_analysis, step_number):
+def _reachability_summary(area_analysis, reachable_cells, belief=None):
+    """Return stable match-reachability diagnostics without changing policy."""
+    reachable = tuple(sorted(
+        (int(cell[0]), int(cell[1]))
+        for cell in (reachable_cells or ())
+    ))
+    reachable_set = frozenset(reachable)
+    if area_analysis is None:
+        reachable_area_ids = ()
+        excluded_area_ids = ()
+    else:
+        reachable_area_ids = tuple(sorted(
+            area.area_id
+            for area in area_analysis.areas
+            if any(cell in reachable_set for cell in area.cells)
+        ))
+        reachable_area_set = frozenset(reachable_area_ids)
+        excluded_area_ids = tuple(sorted(
+            area.area_id
+            for area in area_analysis.areas
+            if area.area_id not in reachable_area_set
+        ))
+    excluded_candidates = (
+        ()
+        if belief is None
+        else tuple(belief.sorted_excluded_unreachable_positions())
+    )
+    return {
+        "reachable_cell_count": len(reachable),
+        "reachable_cells": [_position(cell) for cell in reachable],
+        "reachable_area_ids": list(reachable_area_ids),
+        "excluded_area_ids": list(excluded_area_ids),
+        "excluded_initial_ghost_candidate_count": len(excluded_candidates),
+        "excluded_initial_ghost_candidate_cells": [
+            _position(cell) for cell in excluded_candidates
+        ],
+    }
+
+
+def _belief_summary(belief, area_analysis, step_number, reachable_cells=()):
     """Return a JSON-ready snapshot without making diagnostics authoritative."""
     if belief is None:
         return None
@@ -225,9 +292,17 @@ def _belief_summary(belief, area_analysis, step_number):
     if area_analysis is None:
         return summary
 
+    reachable_set = frozenset(
+        (int(cell[0]), int(cell[1]))
+        for cell in (reachable_cells or ())
+    )
+    excluded_candidates = frozenset(
+        belief.sorted_excluded_unreachable_positions()
+    )
     for area in area_analysis.areas:
         cells = tuple(sorted(area.cells))
         possible_cells = tuple(belief.possible_positions_in_area(area))
+        excluded_cells = tuple(sorted(excluded_candidates & area.cells))
         never_observed = tuple(belief.never_observed_in_area(area))
         ages = [
             belief.last_observed_age(cell, step_number)
@@ -236,9 +311,14 @@ def _belief_summary(belief, area_analysis, step_number):
         known_ages = [age for age in ages if age is not None]
         summary["areas"].append({
             "area_id": area.area_id,
+            "reachable_from_spawn": any(cell in reachable_set for cell in cells),
             "risk": float(belief.risk_fraction_for_area(area)),
             "possible_count": len(possible_cells),
             "possible_cells": [_position(cell) for cell in possible_cells],
+            "excluded_unreachable_initial_candidate_count": len(excluded_cells),
+            "excluded_unreachable_initial_candidate_cells": [
+                _position(cell) for cell in excluded_cells
+            ],
             "never_observed_count": len(never_observed),
             "never_observed_cells": [_position(cell) for cell in never_observed],
             "fresh_count": sum(age == 0 for age in known_ages),
@@ -259,6 +339,8 @@ def _search_summary(decision):
             "current_area_id": None,
             "target_area_id": None,
             "planned_area_order": [],
+            "reachable_area_ids": [],
+            "excluded_area_ids": [],
             "entry": None,
             "exit": None,
             "route": [],
@@ -285,6 +367,8 @@ def _search_summary(decision):
         "current_area_id": decision.current_area_id,
         "target_area_id": decision.target_area_id,
         "planned_area_order": list(decision.planned_area_order),
+        "reachable_area_ids": list(decision.reachable_area_ids),
+        "excluded_area_ids": list(decision.excluded_area_ids),
         "entry": _position(decision.entry),
         "exit": _position(decision.exit),
         "route": [_position(cell) for cell in decision.route],
@@ -312,12 +396,20 @@ def _search_summary(decision):
 
 def _fallback_fields(decision):
     """Explain the narrow scope of the planner's fallback flag."""
-    safety_reasons = {"position_outside_areas", "no_reachable_area"}
+    safety_reasons = {
+        "position_outside_areas",
+        "unreachable_target_skipped",
+        "no_reachable_area",
+    }
     if decision.replan_reason in safety_reasons:
         return {
             "fallback": True,
             "fallback_scope": "search_safety",
-            "fallback_meaning": decision.replan_reason,
+            "fallback_meaning": (
+                "safe_stay_no_target"
+                if decision.replan_reason == "no_reachable_area"
+                else decision.replan_reason
+            ),
         }
     if decision.fallback:
         return {

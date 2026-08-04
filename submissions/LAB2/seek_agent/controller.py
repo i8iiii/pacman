@@ -186,6 +186,7 @@ class SeekController:
             current_area_id=current_area_id,
             target_area_id=target_area_id,
             visible_cells=visible_cells,
+            reachable_cells=self.reachable_component,
             ghost_belief=self.ghost_belief,
             search_decision=search_decision,
             error=error,
@@ -205,6 +206,7 @@ class SeekController:
                 analysis,
                 observation,
                 cache_hit,
+                reachable_cells=self.reachable_component,
             )
             self._area_diagnostics_pending = False
 
