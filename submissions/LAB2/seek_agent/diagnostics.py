@@ -9,7 +9,7 @@ import numpy as np
 from .search import OPPORTUNITY_MAX_EXTRA_FRACTION
 
 
-PACMAN_SEEK_DIAGNOSTICS = True
+PACMAN_SEEK_DIAGNOSTICS = False
 _ENABLED_VALUES = {"1", "true", "yes", "on"}
 _DISABLED_VALUES = {"0", "false", "no", "off"}
 
