@@ -306,6 +306,7 @@ def _search_summary(decision):
         "replan_reason": decision.replan_reason,
         "planning_seconds": float(decision.planning_seconds),
         "exact": bool(decision.exact),
+        "local_route_fallback": bool(decision.local_route_fallback),
         **fallback,
     }
 

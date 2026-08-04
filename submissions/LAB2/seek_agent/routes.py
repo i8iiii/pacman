@@ -120,6 +120,7 @@ def _candidate_route(
         checkpoints += (exit,)
 
     segments = []
+    segment_actions = []
     for start, goal in zip(checkpoints, checkpoints[1:]):
         path = minimum_turn_path(
             topology,
@@ -131,6 +132,11 @@ def _candidate_route(
         if path is None:
             return None
         segments.append(path)
+        # Each checkpoint is an intentional observation stop.  Keep the
+        # segment's own actions instead of recompressing the final cell path:
+        # two same-direction segments may be adjacent yet must remain two
+        # turns when the checkpoint lies between them.
+        segment_actions.append(path_to_actions(path, pacman_speed))
 
     cells = tuple(concatenate_paths(*segments)) if segments else (entry,)
     return _route_result(
@@ -140,6 +146,11 @@ def _candidate_route(
         required=required,
         used_viewpoints=viewpoints,
         pacman_speed=pacman_speed,
+        actions=tuple(
+            action
+            for segment_action_list in segment_actions
+            for action in segment_action_list
+        ),
     )
 
 
@@ -150,8 +161,12 @@ def _route_result(
     required,
     used_viewpoints,
     pacman_speed,
+    actions=None,
 ):
-    actions = path_to_actions(cells, pacman_speed)
+    actions = (
+        path_to_actions(cells, pacman_speed)
+        if actions is None else tuple(actions)
+    )
     visible = visible_cells_for_actions(topology, cells, actions)
     covered = frozenset(required & visible)
     return RouteResult(

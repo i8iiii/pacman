@@ -59,6 +59,11 @@ class SearchDecision:
     planning_seconds: float
     exact: bool
     fallback: bool
+    # This is intentionally separate from ``fallback``: it means only that
+    # the locked area's exhaustive local sweep was replaced with a direct
+    # outstanding-cell route.  ``fallback`` continues to describe global
+    # priority planning only.
+    local_route_fallback: bool
 
     @property
     def route(self):
@@ -104,7 +109,9 @@ class SearchPlanner:
         self._snapshot_step = None
         self._route_cells = ()
         self._route_actions = ()
-        self._route_index = 0
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = False
         self._last_replan_reason = "new_match"
 
     def decide(self, topology, analysis, belief, position, visible_cells=(),
@@ -180,19 +187,25 @@ class SearchPlanner:
                         step_number, deadline,
                     )
 
+        sweep_replan_reason = None
         if self.phase == SearchPhase.TRANSIT_TO_AREA:
             cells = self._transit_route(topology, position)
+            actions = path_to_actions(cells, self.pacman_speed)
         elif self.phase == SearchPhase.SWEEP_ACTIVE_AREA:
-            cells = self._sweep_route(
-                topology, analysis, position, deadline,
+            cells, actions, sweep_replan_reason = self._sweep_route(
+                topology, analysis, belief, position, visible, step_number,
+                deadline,
             )
         else:
             cells = (position,)
+            actions = ()
 
-        actions = path_to_actions(cells, self.pacman_speed)
+        if sweep_replan_reason is not None:
+            replan_reason = sweep_replan_reason
         chosen = actions[0] if actions else (Move.STAY, 1)
-        if actions:
-            self._route_index += int(chosen[1])
+        if self.phase == SearchPhase.SWEEP_ACTIVE_AREA and actions:
+            self._route_cell_index += int(chosen[1])
+            self._route_action_index += 1
         covered = self._covered_required(belief, visible, step_number)
         return SearchDecision(
             phase=self.phase,
@@ -212,6 +225,7 @@ class SearchPlanner:
             planning_seconds=perf_counter() - started_at,
             exact=exact,
             fallback=fallback,
+            local_route_fallback=self._local_route_fallback,
         )
 
     # A concise alias makes eventual controller integration read naturally.
@@ -260,7 +274,9 @@ class SearchPlanner:
         self._snapshot_step = None
         self._route_cells = ()
         self._route_actions = ()
-        self._route_index = 0
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = False
         self.phase = SearchPhase.TRANSIT_TO_AREA
         return exact, fallback
 
@@ -417,13 +433,12 @@ class SearchPlanner:
         )
         self._route_cells = route.cells
         self._route_actions = route.actions
-        self._route_index = 0
-        if not route.complete and len(route.cells) < 2:
-            self._route_cells = self._safe_required_route(
-                topology, area, position,
-            )
-            self._route_actions = path_to_actions(
-                self._route_cells, self.pacman_speed,
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = not route.complete
+        if not route.complete:
+            self._set_safe_required_route(
+                topology, area, position, self.required_cells,
             )
         self.phase = SearchPhase.SWEEP_ACTIVE_AREA
 
@@ -475,34 +490,71 @@ class SearchPlanner:
         self.entry = entry
         return tuple(path)
 
-    def _sweep_route(self, topology, analysis, position, deadline):
-        if self._route_cells and self._route_index < len(self._route_cells):
-            expected = self._route_cells[self._route_index]
+    def _sweep_route(self, topology, analysis, belief, position, visible,
+                     step_number, deadline):
+        """Return the stored sweep suffix, rebuilding only the locked area.
+
+        Cell and action cursors advance together.  That preserves deliberate
+        viewpoint stop boundaries even when two neighbouring route segments
+        point in the same direction.
+        """
+        outstanding = self.required_cells - self._covered_required(
+            belief, visible, step_number,
+        )
+        if not outstanding:
+            return (position,), (), None
+
+        stored_exhausted = (
+            not self._route_cells
+            or self._route_action_index >= len(self._route_actions)
+            or self._route_cell_index >= len(self._route_cells) - 1
+        )
+        if not stored_exhausted:
+            expected = self._route_cells[self._route_cell_index]
             if position == expected:
-                return self._route_cells[self._route_index:]
-        # A chase interruption or altered action result invalidated the stored
-        # suffix.  Rebuild only the locked local route; never choose a new area.
+                return (
+                    self._route_cells[self._route_cell_index:],
+                    self._route_actions[self._route_action_index:],
+                    None,
+                )
+        # A chase interruption, altered action result, or exhausted partial
+        # route invalidated the suffix.  Rebuild only the locked local route;
+        # never choose another area and never target already-covered cells.
         area = analysis.areas[self.target_area_id]
         route = plan_area_route(
             topology, area, position, exit=self.exit,
-            required_cells=self.required_cells,
+            required_cells=outstanding,
             pacman_speed=self.pacman_speed, deadline=deadline,
         )
         self._route_cells = route.cells
         self._route_actions = route.actions
-        self._route_index = 0
-        if not route.complete and len(route.cells) < 2:
-            self._route_cells = self._safe_required_route(
-                topology, area, position,
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = not route.complete
+        if not route.complete:
+            self._set_safe_required_route(
+                topology, area, position, outstanding,
             )
-            self._route_actions = path_to_actions(
-                self._route_cells, self.pacman_speed,
-            )
-        return self._route_cells
+        return (
+            self._route_cells,
+            self._route_actions,
+            "sweep_outstanding_route",
+        )
 
-    def _safe_required_route(self, topology, area, position):
+    def _set_safe_required_route(self, topology, area, position, outstanding):
+        """Replace an incomplete local enumeration with direct live progress."""
+        self._route_cells = self._safe_required_route(
+            topology, area, position, outstanding,
+        )
+        self._route_actions = path_to_actions(
+            self._route_cells, self.pacman_speed,
+        )
+        self._route_cell_index = 0
+        self._route_action_index = 0
+
+    def _safe_required_route(self, topology, area, position, outstanding):
         """Deterministic one-goal fallback when local enumeration expires."""
-        outstanding = sorted(self.required_cells)
+        outstanding = sorted(normalize_position(cell) for cell in outstanding)
         candidates = []
         for goal in outstanding:
             path = minimum_turn_path(
@@ -625,7 +677,9 @@ class SearchPlanner:
         self._snapshot_step = None
         self._route_cells = ()
         self._route_actions = ()
-        self._route_index = 0
+        self._route_cell_index = 0
+        self._route_action_index = 0
+        self._local_route_fallback = False
 
     def _fallback_decision(self, current_area, position, started_at, reason):
         return SearchDecision(
@@ -646,4 +700,5 @@ class SearchPlanner:
             planning_seconds=perf_counter() - started_at,
             exact=False,
             fallback=True,
+            local_route_fallback=False,
         )
