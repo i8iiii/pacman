@@ -16,6 +16,7 @@ from .spatial import (
     movement_delta,
     normalize_position,
     optional_position,
+    reachable_component,
     shortest_path,
     visibility_footprint,
 )
@@ -48,6 +49,7 @@ class SeekController:
         self.area_cache_hit = False
         self._area_diagnostics_pending = True
         self._last_step_number = None
+        self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
         self.search_planner = SearchPlanner(pacman_speed=self.pacman_speed)
         self._reset_match_state()
@@ -57,6 +59,7 @@ class SeekController:
         self.mode = SeekMode.SEARCHING
         self.last_seen_position = None
         self.last_seen_step = None
+        self.reachable_component = frozenset()
         self.ghost_belief = GhostBelief()
         self.search_planner.reset(analysis)
 
@@ -84,6 +87,10 @@ class SeekController:
             )
             if is_new_match:
                 self._reset_match_state(self.area_analysis)
+                self.reachable_component = reachable_component(
+                    topology,
+                    my_position,
+                )
                 self.diagnostics.reset_for_match()
                 self._area_diagnostics_pending = True
                 transition_reasons.append("new_match")
@@ -100,6 +107,7 @@ class SeekController:
                     my_position,
                     visible_cells=visible_cells,
                     step_number=step_number,
+                    reachable_cells=self.reachable_component,
                 )
             self.ghost_belief.update(
                 observation,

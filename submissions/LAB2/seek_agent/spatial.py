@@ -51,6 +51,31 @@ def traversable_neighbors(topology, position):
             yield neighbor
 
 
+def reachable_component(topology, start):
+    """Return the traversable connected component containing ``start``.
+
+    The traversal follows ``CARDINAL_MOVES`` order, keeping exploration
+    deterministic for callers which need reproducible diagnostics.
+    """
+    try:
+        start = normalize_position(start)
+    except (IndexError, TypeError, ValueError):
+        return frozenset()
+    if not is_traversable(topology, start):
+        return frozenset()
+
+    frontier = deque([start])
+    visited = {start}
+    while frontier:
+        current = frontier.popleft()
+        for neighbor in traversable_neighbors(topology, current):
+            if neighbor in visited:
+                continue
+            visited.add(neighbor)
+            frontier.append(neighbor)
+    return frozenset(visited)
+
+
 def shortest_path(topology, start, goal):
     if not is_traversable(topology, start):
         return None

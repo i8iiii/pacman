@@ -13,13 +13,31 @@ class GhostBelief:
         self.possible_positions = set()
         self.last_observed_step = {}
         self._traversable_cells = frozenset()
+        self._reachable_cells = None
+        self.excluded_unreachable_positions = frozenset()
         self._last_step_number = None
 
-    def reset(self, map_state, pacman_position, visible_cells=(), step_number=0):
+    def reset(
+        self,
+        map_state,
+        pacman_position,
+        visible_cells=(),
+        step_number=0,
+        reachable_cells=None,
+    ):
         """Seed the belief from the opposite spawn band for a new match."""
         step_number = int(step_number)
         pacman_position = _position(pacman_position)
-        self._traversable_cells = _traversable_cells(map_state)
+        map_traversable_cells = _traversable_cells(map_state)
+        self._reachable_cells = (
+            None
+            if reachable_cells is None
+            else frozenset(_position(cell) for cell in reachable_cells)
+        )
+        self._traversable_cells = _restricted_traversable_cells(
+            map_traversable_cells,
+            self._reachable_cells,
+        )
         self.last_observed_step = {}
         self._last_step_number = step_number
 
@@ -32,26 +50,34 @@ class GhostBelief:
         pacman_row = pacman_position[0]
         if pacman_row < height * 0.4:
             candidates = {
-                cell for cell in self._traversable_cells
+                cell for cell in map_traversable_cells
                 if cell[0] > height * 0.6
             }
         elif pacman_row > height * 0.6:
             candidates = {
-                cell for cell in self._traversable_cells
+                cell for cell in map_traversable_cells
                 if cell[0] < height * 0.4
             }
         else:
             candidates = set()
 
         if not candidates:
-            candidates = set(self._traversable_cells - visible_cells)
-        self.possible_positions = candidates - visible_cells
+            candidates = set(map_traversable_cells - visible_cells)
+        self.excluded_unreachable_positions = frozenset(
+            candidates - self._traversable_cells
+        )
+        self.possible_positions = (
+            candidates & self._traversable_cells
+        ) - visible_cells
         return self.sorted_possible_positions()
 
     def update(self, map_state, visible_cells, enemy_position, step_number):
         """Advance unseen belief and apply this turn's visibility evidence."""
         step_number = int(step_number)
-        self._traversable_cells = _traversable_cells(map_state)
+        self._traversable_cells = _restricted_traversable_cells(
+            _traversable_cells(map_state),
+            self._reachable_cells,
+        )
         visible_cells = self._record_visible(
             map_state,
             visible_cells,
@@ -80,6 +106,10 @@ class GhostBelief:
     def sorted_possible_positions(self):
         """Return the current position set in deterministic order."""
         return tuple(sorted(self.possible_positions))
+
+    def sorted_excluded_unreachable_positions(self):
+        """Return initial candidates excluded by the match component."""
+        return tuple(sorted(self.excluded_unreachable_positions))
 
     def possible_positions_in_area(self, area):
         """Return possible Ghost cells belonging to ``area``, sorted."""
@@ -176,6 +206,12 @@ def _is_traversable(map_state, cell):
         and 0 <= column < width
         and map_state[row, column] in (0, -1)
     )
+
+
+def _restricted_traversable_cells(map_traversable_cells, reachable_cells):
+    if reachable_cells is None:
+        return map_traversable_cells
+    return frozenset(map_traversable_cells & reachable_cells)
 
 
 def _area_cells(area):
