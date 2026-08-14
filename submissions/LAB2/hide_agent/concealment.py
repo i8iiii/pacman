@@ -36,6 +36,7 @@ class HideoutCandidate:
     entrance_hidden: bool = False
     inspection_depth: int = 0
     visibility_footprint: int = 0
+    exposed_axes: int = 0
     spawn_discovery_distance: int = 0
     opposite_vertical_band: bool = False
 
@@ -49,6 +50,7 @@ class HideoutCandidate:
             "entrance_hidden": self.entrance_hidden,
             "inspection_depth": self.inspection_depth,
             "visibility_footprint": self.visibility_footprint,
+            "exposed_axes": self.exposed_axes,
             "spawn_discovery_distance": self.spawn_discovery_distance,
             "opposite_vertical_band": self.opposite_vertical_band,
         }
@@ -154,6 +156,7 @@ def scan_hideouts(
                 target[position].append(gate)
 
     candidates = []
+    all_candidates = []
     for position in sorted(adjacency):
         terminal = terminal_gates[position]
         reconnecting = reconnecting_gates[position]
@@ -197,6 +200,11 @@ def scan_hideouts(
             pacman_spawn,
             ghost_spawn,
         )
+        
+        has_vertical = any(neighbor[0] != position[0] for neighbor in adjacency[position])
+        has_horizontal = any(neighbor[1] != position[1] for neighbor in adjacency[position])
+        exposed_axes = int(has_vertical) + int(has_horizontal)
+
         candidate = HideoutCandidate(
             position=position,
             kind=kind,
@@ -206,11 +214,20 @@ def scan_hideouts(
             entrance_hidden=entrance_hidden,
             inspection_depth=inspection_depth,
             visibility_footprint=len(footprints[position]),
+            exposed_axes=exposed_axes,
             spawn_discovery_distance=spawn_discovery_distance,
             opposite_vertical_band=opposite_vertical_band,
         )
+        all_candidates.append(candidate)
         if is_strategic_hideout(candidate):
             candidates.append(candidate)
+
+    if not candidates:
+        # Fallback to any non-fallback kind if no strict strategic hideouts exist
+        candidates = [c for c in all_candidates if c.kind != "fallback"]
+    if not candidates:
+        # Ultimate fallback: all valid cells
+        candidates = all_candidates
 
     return tuple(candidates)
 
@@ -223,6 +240,145 @@ def is_strategic_hideout(candidate) -> bool:
         and int(getattr(candidate, "inspection_depth", 0))
         >= MIN_HIDEOUT_INSPECTION_DEPTH
     )
+
+
+def rank_hideouts(
+    map_state,
+    ghost_position: Position,
+    candidates: Sequence[HideoutCandidate],
+    *,
+    enemy_position: Optional[Position] = None,
+    possible_enemy_positions: Sequence[Position] = (),
+    excluded_positions: Sequence[Position] = (),
+    observation_radius: int = 5,
+) -> Tuple[HideoutCandidate, ...]:
+    """Return reachable strategic hideouts ordered by border proximity then safety.
+
+    Only hideouts in the top or bottom edge zone (whichever is closest to the
+    ghost vertically) are considered.  Middle-of-map candidates are excluded.
+    Within the chosen zone candidates are sorted by distance to that edge
+    ascending, then by exposed_axes ascending (fewer is better), then
+    by fog-aware safety score descending.
+
+    If no candidates survive the zone filter the full candidate list is used as
+    a fallback so the agent always has somewhere to go.
+    """
+
+    ghost_distances, _ = structural_shortest_paths(map_state, ghost_position)
+    excluded = {tuple(position) for position in excluded_positions}
+    enemy_sources = _enemy_sources(
+        map_state,
+        enemy_position,
+        possible_enemy_positions,
+    )
+    enemy_distances = _multi_source_distances(map_state, enemy_sources)
+    rows, columns = map_state.shape
+    max_corner = max(
+        min(row, rows - 1 - row, column, columns - 1 - column)
+        for row in range(rows)
+        for column in range(columns)
+    )
+    disconnected_enemy_distance = rows * columns
+
+    # Determine whether the ghost is closer to the top or bottom row border.
+    gr, gc = ghost_position
+    use_top = gr <= rows - 1 - gr  # True → prefer top edge; False → bottom edge
+
+    # Edge zone = the outer third of the map on the preferred side.
+    edge_zone = max(1, rows // 3)
+
+    def _score_candidate(candidate):
+        """Return (border_dist, exposed_dirs, safety_score) or None if invalid."""
+        position = tuple(candidate.position)
+        if (
+            position in excluded
+            or position not in ghost_distances
+        ):
+            return None
+
+        corner_distance = min(
+            position[0],
+            rows - 1 - position[0],
+            position[1],
+            columns - 1 - position[1],
+        )
+        safety_score = ghost_distances[position] + max_corner - corner_distance
+        if enemy_sources:
+            enemy_distance = enemy_distances.get(
+                position,
+                disconnected_enemy_distance,
+            )
+            visibility_count = sum(
+                1
+                for source in enemy_sources
+                if source != position
+                and has_line_of_sight(
+                    map_state,
+                    source,
+                    position,
+                    observation_radius,
+                )
+            )
+            safety_score += enemy_distance - 2 * visibility_count
+
+        pr = position[0]
+        border_dist = pr if use_top else (rows - 1 - pr)
+        axes = candidate.exposed_axes
+        return border_dist, axes, safety_score
+
+    # First pass: only candidates inside the preferred edge zone.
+    zone_scored = []
+    all_scored = []
+    for candidate in candidates:
+        result = _score_candidate(candidate)
+        if result is None:
+            continue
+        border_dist, axes, safety_score = result
+        position = tuple(candidate.position)
+        entry = (border_dist, axes, safety_score, position, candidate)
+        all_scored.append(entry)
+        pr = position[0]
+        in_zone = pr < edge_zone if use_top else pr >= rows - edge_zone
+        if in_zone:
+            zone_scored.append(entry)
+
+    # Use the zone-filtered list; fall back to all candidates if zone is empty.
+    scored = zone_scored if zone_scored else all_scored
+
+    # Primary sort: border_dist ascending (closer to preferred edge wins).
+    # Secondary sort: exposed_axes ascending (fewer exposed axes wins).
+    # Tertiary sort: safety_score descending (safer wins among equally-close).
+    # Quaternary: position for determinism.
+    scored.sort(key=lambda item: (item[0], item[1], -item[2], item[3]))
+    return tuple(item[4] for item in scored)
+
+
+def _enemy_sources(map_state, enemy_position, possible_enemy_positions):
+    if enemy_position is not None:
+        positions = (tuple(enemy_position),)
+    else:
+        positions = tuple(sorted({tuple(position) for position in possible_enemy_positions}))
+    return tuple(
+        position
+        for position in positions
+        if is_structurally_traversable(map_state, position)
+    )
+
+
+def _multi_source_distances(map_state, sources):
+    distances = {position: 0 for position in sources}
+    queue = deque(distances)
+
+    while queue:
+        position = queue.popleft()
+        for move in CARDINAL_MOVES:
+            neighbor = apply_move(position, move)
+            if neighbor in distances or not is_structurally_traversable(map_state, neighbor):
+                continue
+            distances[neighbor] = distances[position] + 1
+            queue.append(neighbor)
+
+    return distances
 
 
 def select_hideout(

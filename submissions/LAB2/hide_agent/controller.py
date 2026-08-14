@@ -1,61 +1,34 @@
-"""Hide controller with strategic concealment and P06-P09 escape behavior."""
+"""Simplified Hide controller: rotate closest hideouts with concealed routing."""
 
 from pathlib import Path
 from time import perf_counter
 
 from environment import Move
 
-from .belief import PacmanBeliefTracker, choose_belief_hot_move
-from .spatial import opposite_outer_band, vertical_band
+from .concealment import rank_hideouts, scan_hideouts, visibility_footprints
 from .diagnostics import DIAGNOSTICS_ENABLED, JsonlDiagnostics, MapDiagnostics
-from .evasion import choose_visible_junction_escape
-from .spatial import geometry_summary, is_capture
-from .concealment import scan_hideouts, select_hideout, visibility_footprints
-from .relocation import (
-    DEEPEN_OPPOSITE,
-    MIDDLE_HOLD,
-    MIDDLE_HOLD_TURNS,
-    OPPOSITE_HOLD,
-    OPPOSITE_ROAD_SWITCH_TURNS,
-    TO_MIDDLE,
-    TO_OPPOSITE,
-    MigrationSelection,
-    MigrationState,
-    destination_band,
-    empty_hideout_selection,
-    fallback_candidates_for_cells,
-    select_progressive_waypoint,
-    select_required_band_rescue,
-)
-from .evasion import choose_visible_mobile_escape
 from .spatial import (
     RouteTarget,
     concealment_route,
+    geometry_summary,
     route_is_structural,
     route_moves,
+    structural_shortest_paths,
 )
-from .belief import PursuitTracker
-from .relocation import (
-    active_road_visibility_cells,
-    build_road_cycle,
-    build_road_visibility,
-    detect_major_roads,
-    filter_hideout_candidates,
-    main_junction_manhattan_distance,
-    main_road_intersections,
-    road_thresholds,
-    select_gradual_relocation,
-    select_reachable_component_fallback,
-)
-from .concealment import scan_campsites
 
 
 class HideController:
-    """Hide deeply before detection, then preserve the established escape logic."""
+    """Rotate across nearby hideouts with simple deterministic behavior.
+
+    Selection strategy: always prefer hideouts near the map border that is
+    closest to the ghost's current position.  No detour stops are made en
+    route — the ghost travels directly to each anchor hideout.
+    """
 
     SCOUT = "SCOUT"
     HIDE = "HIDE"
-    HOT_UNSEEN = "HOT_UNSEEN"
+
+    HOLD_TURNS = 10
 
     def __init__(
         self,
@@ -83,54 +56,58 @@ class HideController:
             map_jsonl_path or debug_dir / "hide-agent-map.jsonl",
             enabled=enabled,
         )
+
         self._map_shape = None
         self._last_step_number = None
+        self._ghost_spawn = None
+        self._state = self.SCOUT
+
         self._pacman_speed = max(1, int(pacman_speed))
         self._capture_distance = max(1, int(capture_distance))
         self._observation_radius = max(0, int(observation_radius))
-        self._tactical_scan = None
-        self._tactical_campsites = []
-        self._hideout_candidates = ()
-        self._selected_hideout = None
-        self._compromised_hideouts = set()
-        self._ghost_spawn = None
-        self._arrival_logged_for = None
-        self._major_roads = None
-        self._road_visibility = ()
+
         self._visibility_footprints = {}
-        self._eligible_hideouts = ()
-        self._road_excluded_hideouts = ()
-        self._road_cycle = None
-        self._active_road_stage = None
-        self._active_road_ids = ()
-        self._main_road_intersections = ()
-        self._pending_hot_reselection = False
-        self._relocation_origin = None
-        self._migration = MigrationState()
-        self._migration_blocked_reason = None
-        self._last_route_decision = None
-        self._state = None
+        self._hideout_candidates = ()
+
+        self._anchor_hideout = None
+        self._previous_anchor_hideout = None
+
+        self._holding_at = None
+        self._hold_remaining = 0
+
         self._active_target_kind = None
         self._active_target = None
         self._active_path = []
-        self._pursuit = PursuitTracker()
-        self._belief = PacmanBeliefTracker()
 
     def step(self, map_state, my_position, enemy_position, step_number):
-        step_started = perf_counter()
+        try:
+            return self._step_internal(map_state, my_position, enemy_position, step_number)
+        except Exception as e:
+            import traceback
+            trace = traceback.format_exc()
+            print("GHOST AGENT ERROR:", trace)
+            self._diagnostics.write(
+                "error",
+                step_number=step_number,
+                message=str(e),
+                traceback=trace,
+            )
+            return Move.STAY
+
+    def _step_internal(self, map_state, my_position, enemy_position, step_number):
+        started = perf_counter()
         my_position = tuple(int(value) for value in my_position)
         enemy_position = (
             None
             if enemy_position is None
             else tuple(int(value) for value in enemy_position)
         )
-        new_match = self._is_new_match(map_state, step_number)
 
+        new_match = self._is_new_match(map_state, step_number)
         if new_match:
             self._start_match(map_state.shape, my_position, step_number)
 
         current_map = map_state.copy()
-
         self._diagnostics.write(
             "geometry_summary",
             step_number=step_number,
@@ -144,426 +121,243 @@ class HideController:
             ),
         )
 
-        if new_match or self._tactical_scan is None:
-            self._major_roads = detect_major_roads(current_map)
-            footprints = visibility_footprints(
+        if new_match or not self._hideout_candidates:
+            self._visibility_footprints = visibility_footprints(
                 current_map,
                 self._observation_radius,
-            )
-            self._visibility_footprints = footprints
-            self._road_visibility = build_road_visibility(
-                self._major_roads,
-                footprints,
-            )
-            self._road_cycle = build_road_cycle(
-                self._road_visibility,
-                self._ghost_spawn,
-                current_map.shape,
-            )
-            self._main_road_intersections = main_road_intersections(
-                self._major_roads
-            )
-            self._active_road_stage = self._road_cycle.stage(0)
-            self._active_road_ids = (
-                self._active_road_stage.road_ids
-            )
-            self._tactical_scan, self._tactical_campsites = scan_campsites(
-                current_map,
-                pacman_speed=self._pacman_speed,
-                capture_distance=self._capture_distance,
-                observation_radius=self._observation_radius,
             )
             self._hideout_candidates = scan_hideouts(
                 current_map,
                 observation_radius=self._observation_radius,
                 ghost_spawn=self._ghost_spawn,
                 pacman_speed=self._pacman_speed,
-                footprints=footprints,
+                footprints=self._visibility_footprints,
             )
-            (
-                self._eligible_hideouts,
-                self._road_excluded_hideouts,
-            ) = filter_hideout_candidates(
-                self._hideout_candidates,
-                self._road_visibility,
-                active_road_ids=self._active_road_ids,
-            )
-            self._diagnostics.write(
-                "road_cycle_built",
-                step_number=step_number,
-                **self._road_cycle.to_log_record(),
-            )
-            self._write_road_stage_changed(
-                step_number=step_number,
-                elapsed_turns=0,
-                previous_stage=None,
-                requested_stage=self._active_road_stage,
-                released_road_ids=(),
-                selected_hideout=None,
-                selected_hideout_safe=None,
-            )
-            self._diagnostics.write(
-                "main_road_scan",
-                step_number=step_number,
-                shape=list(current_map.shape),
-                thresholds=road_thresholds(current_map),
-                road_count=len(self._major_roads),
-                roads=[
-                    road.to_log_record()
-                    for road in self._major_roads
-                ],
-                road_visibility=[
-                    record.to_log_record()
-                    for record in self._road_visibility
-                ],
-                approach_road_ids=[
-                    record.road.road_id
-                    for record in self._road_visibility
-                    if record.is_approach
-                ],
-                excluded_cell_count=len(
-                    {
-                        position
-                        for record in self._road_visibility
-                        if record.is_approach
-                        for position in record.visible_cells
-                    }
-                ),
-                excluded_hideout_count=len(
-                    self._road_excluded_hideouts
-                ),
-            )
-            class_counts = {}
-            for candidate in self._hideout_candidates:
-                class_counts[candidate.kind] = (
-                    class_counts.get(candidate.kind, 0) + 1
-                )
-            footprints = [
-                candidate.visibility_footprint
-                for candidate in self._hideout_candidates
-            ]
             self._diagnostics.write(
                 "hideout_scan",
                 step_number=step_number,
                 candidates=len(self._hideout_candidates),
-                classes=class_counts,
-                entrance_hidden=sum(
-                    int(candidate.entrance_hidden)
-                    for candidate in self._hideout_candidates
-                ),
-                footprint_min=min(footprints) if footprints else None,
-                footprint_max=max(footprints) if footprints else None,
             )
 
-        if enemy_position is not None:
-            self._migration.middle_hold_turns = 0
-            self._migration.opposite_hold_turns = 0
-            relocation_origin = self._compromise_selected_hideout(
-                my_position,
-                step_number,
-            )
-            if relocation_origin is not None:
-                self._relocation_origin = relocation_origin
-            self._pending_hot_reselection = True
-
-        target_plan = None
-        selection = None
-        relocation = None
-        selection_reason = None
-        migration_choice = None
-        previous_selected = (
-            None
-            if self._selected_hideout is None
-            else self._selected_hideout.position
+        move, reason = self._decide_move(
+            current_map,
+            my_position,
+            enemy_position,
+            step_number,
         )
-        normal_unseen = enemy_position is None and not self._belief.active
 
-        if normal_unseen:
-            migration_choice = self._plan_normal_unseen_migration(
-                current_map,
-                my_position,
-                step_number,
-            )
-            if migration_choice is not None:
-                selection = migration_choice.selection
-                if selection.candidate is not None:
-                    self._selected_hideout = selection.candidate
-                    selection_reason = migration_choice.reason
-                elif self._selected_hideout is None:
-                    self._clear_route()
-
-        hot_unseen = enemy_position is None and self._belief.active
-        if hot_unseen and self._pending_hot_reselection:
-            if self._relocation_origin is None:
-                selection = select_hideout(
-                    current_map,
-                    my_position,
-                    self._eligible_hideouts,
-                    self._compromised_hideouts,
-                )
-            else:
-                relocation = select_gradual_relocation(
-                    current_map,
-                    my_position,
-                    self._eligible_hideouts,
-                    self._compromised_hideouts,
-                    self._main_road_intersections,
-                    self._relocation_origin,
-                )
-                selection = relocation.selection
-
-            self._selected_hideout = selection.candidate
-            self._pending_hot_reselection = False
-            self._relocation_origin = None
-
-        if normal_unseen:
-            if self._selected_hideout is not None:
-                active_excluded_cells = (
-                    active_road_visibility_cells(
-                        self._road_visibility,
-                        self._active_road_ids,
-                    )
-                )
-                self._last_route_decision = concealment_route(
-                    current_map,
-                    my_position,
-                    self._selected_hideout.position,
-                    self._visibility_footprints,
-                    active_excluded_cells,
-                )
-                if (
-                    self._last_route_decision.path
-                    or tuple(my_position)
-                    == self._selected_hideout.position
-                ):
-                    target_plan = RouteTarget(
-                        kind="migration_waypoint",
-                        position=self._selected_hideout.position,
-                        path=self._last_route_decision.path,
-                    )
-                else:
-                    self._selected_hideout = None
-                    self._last_route_decision = None
-                    self._clear_route()
-        selected_position = (
-            None
-            if self._selected_hideout is None
-            else self._selected_hideout.position
-        )
-        current_hideout = self._at_selected_hideout(my_position)
-        if current_hideout:
-            target_plan = None
-
-        if selected_position != previous_selected and selection is not None:
-            self._arrival_logged_for = None
-            relocation_fields = (
-                {} if relocation is None else relocation.to_log_fields()
-            )
-            selection_fields = (
-                {}
-                if selection_reason is None
-                else {"selection_reason": selection_reason}
-            )
-            self._diagnostics.write(
-                "hideout_selected",
-                step_number=step_number,
-                selected=(
-                    None
-                    if selection.candidate is None
-                    else selection.candidate.to_log_record()
-                ),
-                route_distance=selection.route_distance,
-                rank=list(selection.rank),
-                admitted_count=getattr(
-                    selection,
-                    "admitted_count",
-                    None,
-                ),
-                rejections=dict(selection.rejections),
-                **relocation_fields,
-                **selection_fields,
-            )
-
-        belief_update = None
-        if enemy_position is None:
-            belief_update = self._belief.observe_unseen(
-                current_map,
-                my_position,
-                observation_radius=self._observation_radius,
-                capture_distance=self._capture_distance,
-                pacman_speed=self._pacman_speed,
-            )
-            if belief_update.rebuilt:
-                self._write_belief_rebuilt(
-                    belief_update,
-                    step_number,
-                )
-        else:
-            was_hot = (
-                self._belief.active
-                and self._belief.elapsed_unseen > 0
-            )
-            if was_hot:
-                self._write_hot_unseen_exited(
-                    step_number,
-                    reason="new_sighting",
-                )
-                self._change_state(
-                    (
-                        self.HIDE
-                        if current_hideout
-                        else self.SCOUT
-                    ),
-                    step_number,
-                    reason="new_sighting",
-                )
-            self._belief.record_visible(
-                enemy_position,
-                step_number,
-            )
-
-        hot_result = None
-        if enemy_position is None:
-            hot_result = self._hot_unseen_move(
-                current_map,
-                my_position,
-                step_number,
-                belief_update,
-                current_hideout,
-            )
-
-        if enemy_position is not None:
-            if (
-                self._pursuit.active is not None
-                or self._pursuit.pending is not None
-            ):
-                invalidated = self._pursuit.invalidate("new_sighting")
-                self._write_follower_invalidated(
-                    invalidated,
-                    step_number,
-                )
-                self._change_state(
-                    (
-                        self.HIDE if current_hideout else self.SCOUT
-                    ),
-                    step_number,
-                    reason="new_sighting",
-                )
-            escape_decision = choose_visible_junction_escape(
-                current_map,
-                my_position,
-                enemy_position,
-                pacman_speed=self._pacman_speed,
-                capture_distance=self._capture_distance,
-            )
-            if escape_decision is None:
-                mobile_decision = choose_visible_mobile_escape(
-                    current_map,
-                    my_position,
-                    enemy_position,
-                    self._tactical_campsites,
-                    pacman_speed=self._pacman_speed,
-                    capture_distance=self._capture_distance,
-                    observation_radius=self._observation_radius,
-                )
-                self._clear_route()
-                self._write_visible_mobile_escape(
-                    mobile_decision,
-                    my_position,
-                    enemy_position,
-                    step_number,
-                )
-                move = mobile_decision.selected.move
-                decision_reason = (
-                    f"visible_mobile_escape_{mobile_decision.mode}"
-                )
-            else:
-                self._clear_route()
-                self._write_visible_escape(
-                    escape_decision,
-                    my_position,
-                    enemy_position,
-                    current_hideout,
-                    step_number,
-                )
-                move = escape_decision.selected.move
-                decision_reason = (
-                    f"visible_escape_{escape_decision.mode}"
-                )
-            self._pursuit.record_visible_escape(
-                current_map,
-                my_position,
-                enemy_position,
-                move,
-                step_number,
-            )
-        elif hot_result is not None:
-            move, decision_reason = hot_result
-        elif current_hideout:
-            self._clear_route()
-            self._change_state(
-                self.HIDE,
-                step_number,
-                reason="hideout_reached",
-            )
-            if self._arrival_logged_for != selected_position:
-                self._diagnostics.write(
-                    "hideout_arrived",
-                    step_number=step_number,
-                    hideout=list(selected_position),
-                )
-                self._arrival_logged_for = selected_position
-            move = Move.STAY
-            decision_reason = "hideout_hold"
-        else:
-            self._change_state(
-                self.SCOUT,
-                step_number,
-                reason="routing_to_hideout",
-            )
-            move, decision_reason = self._scout_move(
-                current_map,
-                my_position,
-                target_plan,
-                step_number,
-            )
-
-        self._update_migration_hold_counters(
-            current_map=current_map,
-            my_position=my_position,
-            move=move,
-            normal_unseen=normal_unseen,
-        )
-        active_excluded_cells = active_road_visibility_cells(
-            self._road_visibility,
-            self._active_road_ids,
-        )
         self._map_diagnostics.write_snapshot(
             step_number,
             current_map,
             hideout_candidates=self._hideout_candidates,
-            selected_hideout=selected_position,
-            compromised_hideouts=self._compromised_hideouts,
-            pacman_belief=self._belief.positions,
-            road_visibility=self._road_visibility,
-            road_excluded_hideouts=self._road_excluded_hideouts,
-            road_cycle=self._road_cycle,
-            active_road_stage=self._active_road_stage,
-            active_road_ids=self._active_road_ids,
-            active_road_excluded_cells=active_excluded_cells,
-            migration_state=self._migration_log_state(),
+            selected_hideout=self._anchor_hideout,
+            compromised_hideouts=(),
+            pacman_belief=(),
         )
-        runtime_ms = (perf_counter() - step_started) * 1000.0
+
+        runtime_ms = round((perf_counter() - started) * 1000.0, 3)
         self._diagnostics.write(
             "decision",
-            move=move.name,
-            reason=decision_reason,
-            runtime_ms=round(runtime_ms, 3),
-            state=self._state,
             step_number=step_number,
+            move=move.name,
+            reason=reason,
+            state=self._state,
+            runtime_ms=runtime_ms,
+            anchor_hideout=(
+                None
+                if self._anchor_hideout is None
+                else list(self._anchor_hideout)
+            ),
+            hold_remaining=self._hold_remaining,
         )
+
         self._last_step_number = step_number
         return move
+
+    def _decide_move(self, current_map, my_position, enemy_position, step_number):
+        self._ensure_anchor(
+            current_map,
+            my_position,
+            enemy_position,
+            step_number,
+        )
+
+        objective = self._anchor_hideout
+        if objective is None:
+            self._clear_route()
+            self._state = self.SCOUT
+            return Move.STAY, "no_hideout_available"
+
+        self._synchronize_route(my_position)
+
+        # If Pacman is visible, OR we are already holding here due to seeing Pacman,
+        # override the objective to our current position so we activate HIDE mode immediately!
+        if enemy_position is not None or self._holding_at == my_position:
+            objective = my_position
+
+        if my_position == objective:
+            return self._handle_objective_arrival(
+                current_map,
+                my_position,
+                enemy_position,
+                step_number,
+                objective,
+            )
+
+        self._holding_at = None
+        self._hold_remaining = 0
+
+        target_plan = self._plan_route(current_map, my_position, objective)
+        move, reason = self._scout_move(
+            current_map,
+            my_position,
+            target_plan,
+            step_number,
+        )
+        self._state = self.SCOUT
+        return move, reason
+
+    def _handle_objective_arrival(
+        self,
+        current_map,
+        my_position,
+        enemy_position,
+        step_number,
+        objective,
+    ):
+        if self._holding_at != objective:
+            self._holding_at = objective
+            self._hold_remaining = self.HOLD_TURNS
+            self._diagnostics.write(
+                "hold_started",
+                step_number=step_number,
+                hideout=list(objective),
+                hold_turns=self.HOLD_TURNS,
+            )
+
+        if self._hold_remaining > 0:
+            self._hold_remaining -= 1
+            self._clear_route()
+            self._state = self.HIDE
+            return Move.STAY, "hideout_hold"
+
+        # Hold complete — rotate to a new anchor, excluding the current one.
+        self._previous_anchor_hideout = self._anchor_hideout
+        banned = (
+            {self._previous_anchor_hideout}
+            if self._previous_anchor_hideout is not None
+            else set()
+        )
+        self._anchor_hideout = self._select_ranked_hideout(
+            current_map,
+            my_position,
+            enemy_position,
+            banned=banned,
+        )
+        self._holding_at = None
+        self._hold_remaining = 0
+        self._clear_route()
+
+        self._diagnostics.write(
+            "anchor_rotated",
+            step_number=step_number,
+            previous=(
+                None
+                if self._previous_anchor_hideout is None
+                else list(self._previous_anchor_hideout)
+            ),
+            selected=(
+                None
+                if self._anchor_hideout is None
+                else list(self._anchor_hideout)
+            ),
+        )
+
+        self._state = self.SCOUT
+        return Move.STAY, "rotate_anchor_after_hold"
+
+    def _ensure_anchor(
+        self,
+        current_map,
+        my_position,
+        enemy_position,
+        step_number,
+    ):
+        if self._anchor_hideout is not None:
+            return
+
+        banned = (
+            {self._previous_anchor_hideout}
+            if self._previous_anchor_hideout is not None
+            else set()
+        )
+        self._anchor_hideout = self._select_ranked_hideout(
+            current_map,
+            my_position,
+            enemy_position,
+            banned=banned,
+        )
+        # If the ban excluded every option, retry without restrictions.
+        if self._anchor_hideout is None and self._previous_anchor_hideout is not None:
+            self._anchor_hideout = self._select_ranked_hideout(
+                current_map,
+                my_position,
+                enemy_position,
+                banned=set(),
+            )
+
+        self._diagnostics.write(
+            "anchor_selected",
+            step_number=step_number,
+            selected=(
+                None
+                if self._anchor_hideout is None
+                else list(self._anchor_hideout)
+            ),
+        )
+
+    def _select_ranked_hideout(
+        self,
+        current_map,
+        my_position,
+        enemy_position,
+        banned,
+    ):
+        effective_ban = [p for p in banned if p is not None]
+        ranked = rank_hideouts(
+            current_map,
+            my_position,
+            self._hideout_candidates,
+            enemy_position=enemy_position,
+            excluded_positions=effective_ban,
+            observation_radius=self._observation_radius,
+        )
+        if not ranked and effective_ban:
+            ranked = rank_hideouts(
+                current_map,
+                my_position,
+                self._hideout_candidates,
+                enemy_position=enemy_position,
+                observation_radius=self._observation_radius,
+            )
+        return None if not ranked else tuple(ranked[0].position)
+
+    def _plan_route(self, current_map, my_position, target):
+        decision = concealment_route(
+            current_map,
+            my_position,
+            target,
+            self._visibility_footprints,
+            active_road_visible=(),
+        )
+        path = tuple(decision.path)
+        if path or tuple(my_position) == tuple(target):
+            return RouteTarget(
+                kind="anchor_hideout",
+                position=tuple(target),
+                path=path,
+            )
+        return None
 
     def _is_new_match(self, map_state, step_number):
         return (
@@ -577,35 +371,23 @@ class HideController:
 
     def _start_match(self, map_shape, ghost_spawn, step_number):
         self._map_shape = tuple(map_shape)
+        self._ghost_spawn = tuple(ghost_spawn)
+        self._state = self.SCOUT
+
+        self._visibility_footprints = {}
+        self._hideout_candidates = ()
+
+        self._anchor_hideout = None
+        self._previous_anchor_hideout = None
+
+        self._holding_at = None
+        self._hold_remaining = 0
+
+        self._clear_route()
+
         self._diagnostics.reset()
         self._map_diagnostics.reset()
-        self._tactical_scan = None
-        self._tactical_campsites = []
-        self._hideout_candidates = ()
-        self._selected_hideout = None
-        self._compromised_hideouts = set()
-        self._ghost_spawn = tuple(ghost_spawn)
-        self._arrival_logged_for = None
-        self._major_roads = None
-        self._road_visibility = ()
-        self._visibility_footprints = {}
-        self._eligible_hideouts = ()
-        self._road_excluded_hideouts = ()
-        self._road_cycle = None
-        self._active_road_stage = None
-        self._active_road_ids = ()
-        self._main_road_intersections = ()
-        self._pending_hot_reselection = False
-        self._relocation_origin = None
-        self._migration.reset()
-        self._migration_blocked_reason = None
-        self._last_route_decision = None
-        self._state = self.SCOUT
-        self._pursuit.reset()
-        self._belief.reset()
-        self._clear_route()
         self._diagnostics.write("match_start")
-        self._diagnostics.write("match_state_reset")
         self._diagnostics.write(
             "state_changed",
             step_number=step_number,
@@ -614,581 +396,32 @@ class HideController:
             reason="match_start",
         )
 
-    def _at_selected_hideout(self, position):
-        return (
-            self._selected_hideout is not None
-            and self._selected_hideout.position == tuple(position)
-        )
-
-    def _plan_normal_unseen_migration(
-        self,
-        current_map,
-        my_position,
-        step_number,
-    ):
-        phase = self._migration.phase
-        arrived = self._at_selected_hideout(my_position)
-
-        if phase == MIDDLE_HOLD:
-            if (
-                self._migration.middle_hold_turns
-                < MIDDLE_HOLD_TURNS
-            ):
-                return None
-            self._change_migration_phase(
-                TO_OPPOSITE,
-                step_number,
-                reason="middle_hold_complete",
-            )
-            self._selected_hideout = None
-            self._clear_route()
-            arrived = False
-
-        if phase == OPPOSITE_HOLD:
-            return self._plan_opposite_hold(
-                current_map,
-                my_position,
-                step_number,
-            )
-
-        if self._selected_hideout is not None and not arrived:
-            return None
-
-        arrived_hideout = self._selected_hideout
-        if arrived:
-            current_band = vertical_band(
-                my_position,
-                current_map.shape[0],
-            )
-            if phase == TO_MIDDLE and current_band == "middle":
-                self._change_migration_phase(
-                    MIDDLE_HOLD,
-                    step_number,
-                    reason="middle_arrival",
-                )
-                return None
-            if (
-                phase == TO_OPPOSITE
-                and current_band
-                == opposite_outer_band(
-                    self._ghost_spawn,
-                    current_map.shape[0],
-                )
-            ):
-                self._change_migration_phase(
-                    DEEPEN_OPPOSITE,
-                    step_number,
-                    reason="opposite_arrival",
-                )
-                phase = DEEPEN_OPPOSITE
-
-            self._selected_hideout = None
-            self._clear_route()
-
-        choice = self._select_next_migration_waypoint(
-            current_map,
-            my_position,
-        )
-        if (
-            self._migration.phase == DEEPEN_OPPOSITE
-            and choice.reason == "no_progressive_waypoint"
-        ):
-            self._selected_hideout = arrived_hideout
-            self._change_migration_phase(
-                OPPOSITE_HOLD,
-                step_number,
-                reason="deepening_complete",
-            )
-            self._diagnostics.write(
-                "opposite_deepening_completed",
-                step_number=step_number,
-                hideout=(
-                    None
-                    if arrived_hideout is None
-                    else list(arrived_hideout.position)
-                ),
-            )
-            return None
-        return choice
-
-    def _select_next_migration_waypoint(
-        self,
-        current_map,
-        my_position,
-    ):
-        active_excluded = active_road_visibility_cells(
-            self._road_visibility,
-            self._active_road_ids,
-        )
-        fallback_candidates = fallback_candidates_for_cells(
-            (
-                (row, column)
-                for row in range(current_map.shape[0])
-                for column in range(current_map.shape[1])
-                if int(current_map[row, column]) != 1
-            ),
-            self._visibility_footprints,
-        )
-        choice = select_progressive_waypoint(
-            current_map,
-            my_position,
-            self._ghost_spawn,
-            self._migration.phase,
-            self._hideout_candidates,
-            fallback_candidates,
-            self._compromised_hideouts,
-            active_excluded,
-            self._main_road_intersections,
-        )
-        if (
-            choice.reason != "no_progressive_waypoint"
-            or self._migration.phase == DEEPEN_OPPOSITE
-        ):
-            self._clear_migration_blocked()
-            return choice
-
-        rescue = select_required_band_rescue(
-            current_map,
-            my_position,
-            self._ghost_spawn,
-            self._migration.phase,
-            self._hideout_candidates,
-            fallback_candidates,
-            self._compromised_hideouts,
-            active_excluded,
-            self._visibility_footprints,
-        )
-        if rescue.selection.candidate is not None:
-            self._clear_migration_blocked()
-            return rescue
-
-        self._write_migration_blocked(rescue.reason)
-        current_band_selection = (
-            self._select_reachable_fallback_for_band(
-                current_map,
-                my_position,
-                vertical_band(
-                    my_position,
-                    current_map.shape[0],
-                ),
-                preferred_position=(
-                    None
-                    if self._selected_hideout is None
-                    else self._selected_hideout.position
-                ),
-            )
-        )
-        if current_band_selection.candidate is None:
-            self._write_migration_blocked(
-                "no_safe_current_band_fallback"
-            )
-            return MigrationSelection(
-                selection=empty_hideout_selection(
-                    "no_safe_current_band_fallback"
-                ),
-                reason="no_safe_current_band_fallback",
-                required_band=destination_band(
-                    self._migration.phase,
-                    self._ghost_spawn,
-                    current_map.shape[0],
-                ),
-                progress_delta=None,
-            )
-        return MigrationSelection(
-            selection=current_band_selection,
-            reason="blocked_current_band_hold",
-            required_band=destination_band(
-                self._migration.phase,
-                self._ghost_spawn,
-                current_map.shape[0],
-            ),
-            progress_delta=None,
-        )
-
-    def _plan_opposite_hold(
-        self,
-        current_map,
-        my_position,
-        step_number,
-    ):
-        if (
-            self._migration.opposite_hold_turns
-            < OPPOSITE_ROAD_SWITCH_TURNS
-        ):
-            return None
-        if not self._activate_next_road_stage(step_number):
-            return None
-
-        current_hideout = self._selected_hideout
-        choice = self._select_post_switch_waypoint(
-            current_map,
-            my_position,
-        )
-        if choice.selection.candidate is None:
-            self._selected_hideout = current_hideout
-            return None
-        self._selected_hideout = None
-        self._clear_route()
-        self._change_migration_phase(
-            DEEPEN_OPPOSITE,
-            step_number,
-            reason="road_stage_changed",
-        )
-        return choice
-
-    def _select_post_switch_waypoint(
-        self,
-        current_map,
-        my_position,
-    ):
-        current_position = (
-            None
-            if self._selected_hideout is None
-            else self._selected_hideout.position
-        )
-        destination = opposite_outer_band(
-            self._ghost_spawn,
-            current_map.shape[0],
-        )
-        candidates = tuple(
-            candidate
-            for candidate in self._eligible_hideouts
-            if candidate.position != current_position
-            and vertical_band(
-                candidate.position,
-                current_map.shape[0],
-            )
-            == destination
-        )
-        relocation = select_gradual_relocation(
-            current_map,
-            my_position,
-            candidates,
-            self._compromised_hideouts,
-            self._main_road_intersections,
-            current_position,
-        )
-        if relocation.selection.candidate is not None:
-            return MigrationSelection(
-                selection=relocation.selection,
-                reason="road_switch_waypoint",
-                required_band=destination,
-                progress_delta=None,
-            )
-
-        active_excluded = active_road_visibility_cells(
-            self._road_visibility,
-            self._active_road_ids,
-        )
-        fallback_candidates = fallback_candidates_for_cells(
-            (
-                (row, column)
-                for row in range(current_map.shape[0])
-                for column in range(current_map.shape[1])
-                if int(current_map[row, column]) != 1
-            ),
-            self._visibility_footprints,
-        )
-        return select_required_band_rescue(
-            current_map,
-            my_position,
-            self._ghost_spawn,
-            DEEPEN_OPPOSITE,
-            self._hideout_candidates,
-            fallback_candidates,
-            self._compromised_hideouts
-            | (
-                set()
-                if current_position is None
-                else {current_position}
-            ),
-            active_excluded,
-            self._visibility_footprints,
-        )
-
-    def _next_usable_road_stage(self):
-        if self._road_cycle is None or self._active_road_stage is None:
-            return None
-        stages = self._road_cycle.stages
-        if not stages:
-            return None
-        start = self._active_road_stage.index
-        for offset in range(1, len(stages)):
-            candidate = stages[(start + offset) % len(stages)]
-            if candidate.road_ids:
-                return candidate
-        return None
-
-    def _activate_next_road_stage(self, step_number):
-        requested_stage = self._next_usable_road_stage()
-        self._migration.opposite_hold_turns = 0
-        if requested_stage is None:
-            self._diagnostics.write(
-                "road_stage_change_skipped",
-                step_number=step_number,
-                reason="no_usable_road_stage",
-            )
-            return False
-
-        previous_stage = self._active_road_stage
-        released_road_ids = self._active_road_ids
-        self._active_road_stage = requested_stage
-        self._active_road_ids = requested_stage.road_ids
-        (
-            self._eligible_hideouts,
-            self._road_excluded_hideouts,
-        ) = filter_hideout_candidates(
-            self._hideout_candidates,
-            self._road_visibility,
-            active_road_ids=self._active_road_ids,
-        )
-        selected_position = (
-            None
-            if self._selected_hideout is None
-            else self._selected_hideout.position
-        )
-        self._write_road_stage_changed(
-            step_number=step_number,
-            elapsed_turns=OPPOSITE_ROAD_SWITCH_TURNS,
-            previous_stage=previous_stage,
-            requested_stage=requested_stage,
-            released_road_ids=released_road_ids,
-            selected_hideout=selected_position,
-            selected_hideout_safe=(
-                None
-                if selected_position is None
-                else selected_position
-                not in active_road_visibility_cells(
-                    self._road_visibility,
-                    self._active_road_ids,
-                )
-            ),
-        )
-        return True
-
-    def _change_migration_phase(
-        self,
-        phase,
-        step_number,
-        reason,
-    ):
-        previous = self._migration.phase
-        if previous == phase:
+    def _synchronize_route(self, my_position):
+        if not self._active_path:
             return
-        self._migration.phase = phase
-        if phase != MIDDLE_HOLD:
-            self._migration.middle_hold_turns = 0
-        if phase != OPPOSITE_HOLD:
-            self._migration.opposite_hold_turns = 0
-        self._migration_blocked_reason = None
-        self._diagnostics.write(
-            "migration_phase_changed",
-            step_number=step_number,
-            previous_phase=previous,
-            phase=phase,
-            reason=reason,
-        )
-
-    def _write_migration_blocked(self, reason):
-        if self._migration_blocked_reason == reason:
+        if tuple(my_position) == tuple(self._active_path[0]):
+            self._active_path = self._active_path[1:]
             return
-        self._migration_blocked_reason = reason
-        self._diagnostics.write(
-            "migration_blocked",
-            phase=self._migration.phase,
-            reason=reason,
-        )
+        if tuple(my_position) in self._active_path:
+            index = self._active_path.index(tuple(my_position))
+            self._active_path = self._active_path[index + 1 :]
 
-    def _clear_migration_blocked(self):
-        self._migration_blocked_reason = None
+    def _clear_route(self):
+        self._active_target_kind = None
+        self._active_target = None
+        self._active_path = []
 
-    def _update_migration_hold_counters(
-        self,
-        current_map,
-        my_position,
-        move,
-        normal_unseen,
-    ):
-        middle_hold = (
-            normal_unseen
-            and self._migration.phase == MIDDLE_HOLD
-            and self._selected_hideout is not None
-            and tuple(my_position)
-            == self._selected_hideout.position
-            and vertical_band(
-                my_position,
-                current_map.shape[0],
-            )
-            == "middle"
-            and move is Move.STAY
-        )
-        if middle_hold:
-            self._migration.middle_hold_turns = min(
-                MIDDLE_HOLD_TURNS,
-                self._migration.middle_hold_turns + 1,
-            )
-        elif self._migration.phase == MIDDLE_HOLD:
-            self._migration.middle_hold_turns = 0
-
-        opposite_hold = (
-            normal_unseen
-            and self._migration.phase == OPPOSITE_HOLD
-            and self._selected_hideout is not None
-            and tuple(my_position)
-            == self._selected_hideout.position
-            and vertical_band(
-                my_position,
-                current_map.shape[0],
-            )
-            == opposite_outer_band(
-                self._ghost_spawn,
-                current_map.shape[0],
-            )
-            and move is Move.STAY
-        )
-        if opposite_hold:
-            self._migration.opposite_hold_turns = min(
-                OPPOSITE_ROAD_SWITCH_TURNS,
-                self._migration.opposite_hold_turns + 1,
-            )
-        elif self._migration.phase == OPPOSITE_HOLD:
-            self._migration.opposite_hold_turns = 0
-
-    def _select_reachable_fallback_for_band(
-        self,
-        current_map,
-        my_position,
-        required_band,
-        preferred_position=None,
-    ):
-        allowed_positions = tuple(
-            (row, column)
-            for row in range(current_map.shape[0])
-            for column in range(current_map.shape[1])
-            if int(current_map[row, column]) != 1
-            and vertical_band(
-                (row, column),
-                current_map.shape[0],
-            )
-            == required_band
-        )
-        active_excluded_cells = active_road_visibility_cells(
-            self._road_visibility,
-            self._active_road_ids,
-        )
-        return select_reachable_component_fallback(
-            current_map,
-            my_position,
-            self._visibility_footprints,
-            active_excluded_cells,
-            self._main_road_intersections,
-            compromised=self._compromised_hideouts,
-            preferred_position=preferred_position,
-            allowed_positions=allowed_positions,
-        )
-
-    def _migration_log_state(self):
-        if self._ghost_spawn is None or self._map_shape is None:
-            spawn_band = None
-            required_band = None
-        else:
-            spawn_band = vertical_band(
-                self._ghost_spawn,
-                self._map_shape[0],
-            )
-            required_band = destination_band(
-                self._migration.phase,
-                self._ghost_spawn,
-                self._map_shape[0],
-            )
-        waypoint = (
-            None
-            if self._selected_hideout is None
-            else self._selected_hideout.position
-        )
-        return {
-            "phase": self._migration.phase,
-            "middle_hold_turns": (
-                self._migration.middle_hold_turns
-            ),
-            "opposite_hold_turns": (
-                self._migration.opposite_hold_turns
-            ),
-            "waypoint": None if waypoint is None else list(waypoint),
-            "spawn_band": spawn_band,
-            "destination_band": required_band,
-            "junction_distance": main_junction_manhattan_distance(
-                waypoint,
-                self._main_road_intersections,
-            ),
-            "blocked_reason": self._migration_blocked_reason,
-        }
-
-    def _compromise_selected_hideout(
-        self,
-        my_position,
-        step_number,
-    ):
-        if self._selected_hideout is None:
-            return None
-        position = self._selected_hideout.position
-        if position not in self._compromised_hideouts:
-            reason = (
-                "visible_at_hideout"
-                if tuple(my_position) == position
-                else "visible_en_route"
-            )
-            self._compromised_hideouts.add(position)
-            self._diagnostics.write(
-                "hideout_compromised",
-                step_number=step_number,
-                hideout=list(position),
-                reason=reason,
-                ghost_position=list(my_position),
-            )
-
-        self._selected_hideout = None
-        self._arrival_logged_for = None
-        self._clear_route()
-        return position
-
-    def _scout_move(
-        self,
-        current_map,
-        my_position,
-        target_plan,
-        step_number,
-    ):
-        self._synchronize_route(my_position)
-
+    def _scout_move(self, current_map, my_position, target_plan, step_number):
         if target_plan is None:
-            if self._active_target is not None:
-                self._diagnostics.write(
-                    "route_replanned",
-                    step_number=step_number,
-                    previous_target=list(self._active_target),
-                    previous_target_kind=self._active_target_kind,
-                    target=None,
-                    target_kind=None,
-                    reason="no_safe_reachable_target",
-                )
             self._clear_route()
-            self._diagnostics.write(
-                "scout_target",
-                step_number=step_number,
-                target=None,
-                target_kind=None,
-                reason="no_safe_reachable_target",
-            )
             self._diagnostics.write(
                 "scout_move",
                 step_number=step_number,
                 move=Move.STAY.name,
                 target=None,
-                target_kind=None,
-                remaining_steps=0,
+                reason="no_safe_route",
             )
-            return Move.STAY, "no_safe_reachable_target"
+            return Move.STAY, "no_safe_route"
 
         desired_path = list(target_plan.path)
         desired_moves = route_moves(my_position, desired_path)
@@ -1203,41 +436,30 @@ class HideController:
         )
         route_changed = self._active_path != desired_path
 
-        self._diagnostics.write(
-            "scout_target",
-            step_number=step_number,
-            target=list(target_plan.position),
-            target_kind=target_plan.kind,
-            route_length=len(desired_path),
-        )
-
         if self._active_target is None:
-            self._write_route_event(
-                "route_planned",
-                step_number,
-                my_position,
-                target_plan,
-                desired_path,
-                desired_moves,
-                reason="target_selected",
-            )
+            event = "route_planned"
+            reason = "target_selected"
         elif target_changed or route_invalid or route_changed:
+            event = "route_replanned"
             if target_changed:
                 reason = "target_changed"
             elif route_invalid:
                 reason = "route_invalid"
             else:
                 reason = "route_changed"
-            self._write_route_event(
-                "route_replanned",
-                step_number,
-                my_position,
-                target_plan,
-                desired_path,
-                desired_moves,
+        else:
+            event = None
+            reason = None
+
+        if event is not None:
+            self._diagnostics.write(
+                event,
+                step_number=step_number,
+                target=list(target_plan.position),
+                target_kind=target_plan.kind,
+                path=[list(my_position)] + [list(pos) for pos in desired_path],
+                moves=[move.name for move in desired_moves],
                 reason=reason,
-                previous_target=self._active_target,
-                previous_target_kind=self._active_target_kind,
             )
 
         self._active_target_kind = target_plan.kind
@@ -1249,7 +471,7 @@ class HideController:
             reason = "target_has_no_legal_route"
         else:
             move = desired_moves[0]
-            reason = "hideout_route"
+            reason = "least_exposed_route"
 
         self._diagnostics.write(
             "scout_move",
@@ -1260,469 +482,3 @@ class HideController:
             remaining_steps=len(desired_path),
         )
         return move, reason
-
-    def _write_route_event(
-        self,
-        event,
-        step_number,
-        my_position,
-        target_plan,
-        path,
-        moves,
-        reason,
-        previous_target=None,
-        previous_target_kind=None,
-    ):
-        fields = {
-            "step_number": step_number,
-            "target": list(target_plan.position),
-            "target_kind": target_plan.kind,
-            "path": [list(my_position)] + [
-                list(position) for position in path
-            ],
-            "moves": [move.name for move in moves],
-            "reason": reason,
-        }
-        if (
-            target_plan.kind == "migration_waypoint"
-            and self._last_route_decision is not None
-        ):
-            fields.update(
-                route_mode=self._last_route_decision.mode,
-                road_exposed_steps=(
-                    self._last_route_decision.road_exposed_steps
-                ),
-                visibility_footprint_cost=(
-                    self._last_route_decision.footprint_cost
-                ),
-            )
-        if previous_target is not None:
-            fields["previous_target"] = list(previous_target)
-            fields["previous_target_kind"] = previous_target_kind
-        self._diagnostics.write(event, **fields)
-
-    def _write_road_stage_changed(
-        self,
-        step_number,
-        elapsed_turns,
-        previous_stage,
-        requested_stage,
-        released_road_ids,
-        selected_hideout,
-        selected_hideout_safe,
-    ):
-        excluded_cells = active_road_visibility_cells(
-            self._road_visibility,
-            self._active_road_ids,
-        )
-        self._diagnostics.write(
-            "road_stage_changed",
-            step_number=step_number,
-            elapsed_turns=elapsed_turns,
-            previous_stage=(
-                None
-                if previous_stage is None
-                else previous_stage.to_log_record()
-            ),
-            requested_stage=requested_stage.to_log_record(),
-            active_stage=self._active_road_stage.to_log_record(),
-            released_road_ids=list(released_road_ids),
-            active_road_ids=list(self._active_road_ids),
-            active_excluded_cell_count=len(excluded_cells),
-            excluded_hideout_count=len(self._road_excluded_hideouts),
-            selected_hideout=(
-                None
-                if selected_hideout is None
-                else list(selected_hideout)
-            ),
-            selected_hideout_safe=selected_hideout_safe,
-        )
-
-    def _write_visible_escape(
-        self,
-        decision,
-        my_position,
-        enemy_position,
-        at_tactical_junction,
-        step_number,
-    ):
-        self._diagnostics.write(
-            "visible_at_junction",
-            step_number=step_number,
-            position=list(my_position),
-            pacman_position=list(enemy_position),
-            at_tactical_junction=at_tactical_junction,
-            junction_type=decision.junction_type,
-            approach_direction=decision.approach_direction.name,
-            missing_direction=(
-                None
-                if decision.missing_direction is None
-                else decision.missing_direction.name
-            ),
-            pacman_endpoints=[
-                list(endpoint) for endpoint in decision.pacman_endpoints
-            ],
-            branches=[
-                branch.to_log_record() for branch in decision.branches
-            ],
-        )
-        self._diagnostics.write(
-            "escape_branch_chosen",
-            step_number=step_number,
-            mode=decision.mode,
-            move=decision.selected.move.name,
-            endpoint=list(decision.selected.endpoint),
-            equivalent_moves=[
-                move.name for move in decision.equivalent_moves
-            ],
-            branch=decision.selected.to_log_record(),
-        )
-
-    def _write_visible_mobile_escape(
-        self,
-        decision,
-        my_position,
-        enemy_position,
-        step_number,
-    ):
-        self._diagnostics.write(
-            "visible_while_mobile",
-            step_number=step_number,
-            position=list(my_position),
-            pacman_position=list(enemy_position),
-            approach_direction=(
-                None
-                if decision.approach_direction is None
-                else decision.approach_direction.name
-            ),
-        )
-        selected = decision.selected
-        self._diagnostics.write(
-            "escape_target_chosen",
-            step_number=step_number,
-            mode=decision.mode,
-            move=selected.move.name,
-            endpoint=list(selected.endpoint),
-            guaranteed_safe=selected.guaranteed_safe,
-            immediate_rank=list(selected.immediate_rank),
-            rank=list(selected.rank),
-            equivalent_moves=[
-                move.name for move in decision.equivalent_moves
-            ],
-            target=(
-                None
-                if selected.target is None
-                else selected.target.to_log_record()
-            ),
-            target_reason=(
-                "no_target_on_selected_continuation"
-                if selected.target is None
-                else selected.target.kind
-            ),
-        )
-
-    def _hot_unseen_move(
-        self,
-        current_map,
-        my_position,
-        step_number,
-        belief_update,
-        current_hideout,
-    ):
-        if belief_update is None or belief_update.status == "inactive":
-            return None
-
-        update = self._pursuit.observe_unseen(
-            current_map,
-            my_position,
-            observation_radius=self._observation_radius,
-            capture_distance=self._capture_distance,
-        )
-        if update.entered:
-            self._write_hot_unseen_entered(update, step_number)
-        if update.status != "inactive":
-            self._write_follower_updated(update, step_number)
-        if update.status == "invalidated":
-            self._write_follower_invalidated(update, step_number)
-
-        next_belief = self._belief.predict_next(
-            current_map,
-            pacman_speed=self._pacman_speed,
-        )
-        if (
-            current_hideout
-            and not any(
-                is_capture(
-                    position,
-                    my_position,
-                    self._capture_distance,
-                )
-                for position in next_belief
-            )
-        ):
-            if (
-                self._pursuit.seed is not None
-                or self._pursuit.active is not None
-                or self._pursuit.pending is not None
-            ):
-                invalidated = self._pursuit.invalidate(
-                    "belief_safe_hideout"
-                )
-                self._write_follower_invalidated(
-                    invalidated,
-                    step_number,
-                )
-            self._write_hot_unseen_exited(
-                step_number,
-                reason="belief_safe_hideout",
-            )
-            self._belief.reset()
-            self._clear_route()
-            self._change_state(
-                self.HIDE,
-                step_number,
-                reason="belief_safe_hideout",
-            )
-            if self._arrival_logged_for != self._selected_hideout.position:
-                self._diagnostics.write(
-                    "hideout_arrived",
-                    step_number=step_number,
-                    hideout=list(self._selected_hideout.position),
-                )
-                self._arrival_logged_for = self._selected_hideout.position
-            return Move.STAY, "hot_unseen_safe_hideout"
-
-        strategic_hideouts = (
-            ()
-            if self._selected_hideout is None
-            else (self._selected_hideout,)
-        )
-
-        likely_candidates = self._pursuit.project_hot_moves(
-            current_map,
-            my_position,
-            strategic_hideouts,
-            observation_radius=self._observation_radius,
-            capture_distance=self._capture_distance,
-        )
-        previous_ghost_position = (
-            self._belief.absence_history[-2]
-            if len(self._belief.absence_history) >= 2
-            else None
-        )
-        decision = choose_belief_hot_move(
-            current_map,
-            my_position,
-            self._belief.positions,
-            strategic_hideouts,
-            observation_radius=self._observation_radius,
-            capture_distance=self._capture_distance,
-            pacman_speed=self._pacman_speed,
-            likely_candidates=likely_candidates,
-            previous_ghost_position=previous_ghost_position,
-        )
-        if decision.selected.likely_projection is not None:
-            self._pursuit.stage_hot_candidate(
-                decision.selected.likely_projection
-            )
-
-        self._clear_route()
-        self._change_state(
-            self.HOT_UNSEEN,
-            step_number,
-            reason=(
-                "pursuit_entered"
-                if update.entered
-                else "pursuit_continued"
-            ),
-        )
-        self._write_interceptor_updated(decision, step_number)
-        self._write_hot_move(decision, step_number)
-        return (
-            decision.selected.move,
-            f"hot_unseen_{decision.mode}",
-        )
-
-    def _write_hot_unseen_entered(self, update, step_number):
-        seed = update.seed
-        self._diagnostics.write(
-            "hot_unseen_entered",
-            step_number=step_number,
-            seed_step_number=(
-                None if seed is None else seed.step_number
-            ),
-            pacman_position=(
-                None
-                if seed is None
-                else list(seed.pacman_position)
-            ),
-            ghost_departure_position=(
-                None
-                if seed is None
-                else list(seed.ghost_position)
-            ),
-            escape_move=(
-                None if seed is None else seed.escape_move.name
-            ),
-            expected_ghost_position=(
-                None
-                if seed is None
-                else list(seed.expected_ghost_position)
-            ),
-            trail=[list(position) for position in update.trail],
-            followers=[
-                follower.to_log_record()
-                for follower in update.followers
-            ],
-        )
-
-    def _write_follower_updated(self, update, step_number):
-        self._diagnostics.write(
-            "follower_updated",
-            step_number=step_number,
-            status=update.status,
-            previous_followers=[
-                follower.to_log_record()
-                for follower in update.previous_followers
-            ],
-            followers=[
-                follower.to_log_record()
-                for follower in update.followers
-            ],
-            removals=update.removals_log_record(),
-        )
-
-    def _write_hot_move(self, decision, step_number):
-        selected = decision.selected
-        likely = selected.likely_projection
-        self._diagnostics.write(
-            "hot_move",
-            step_number=step_number,
-            mode=decision.mode,
-            move=selected.move.name,
-            endpoint=list(selected.endpoint),
-            guaranteed_safe=selected.guaranteed_safe,
-            rank=list(selected.rank),
-            equivalent_moves=[
-                move.name for move in decision.equivalent_moves
-            ],
-            next_followers=[
-                follower.to_log_record()
-                for follower in (
-                    () if likely is None else likely.next_followers
-                )
-            ],
-            target=(
-                None
-                if selected.target is None
-                else {
-                    "position": list(selected.target.target),
-                    "ghost_arrival": selected.target.ghost_arrival,
-                    "pacman_threat_arrival": (
-                        selected.target.pacman_threat_arrival
-                    ),
-                }
-            ),
-            capturing_endpoint_count=(
-                selected.capturing_endpoint_count
-            ),
-            broad_belief_size=len(selected.next_belief),
-        )
-
-    def _write_belief_rebuilt(self, update, step_number):
-        self._diagnostics.write(
-            "belief_rebuilt",
-            step_number=step_number,
-            reason=update.rebuild_reason,
-            elapsed_unseen=update.elapsed_unseen,
-            belief_size=len(update.positions),
-        )
-
-    def _write_interceptor_updated(self, decision, step_number):
-        selected = decision.selected
-        assessment = selected.target
-        if assessment is None and selected.interception.assessments:
-            assessment = selected.interception.assessments[0]
-
-        if assessment is None:
-            fields = {
-                "target": None,
-                "route_junction": None,
-                "ghost_arrival": None,
-                "pacman_threat_arrival": None,
-                "contested": None,
-                "reason": "no_reachable_hideout",
-            }
-        elif assessment.first_contested_junction is not None:
-            fields = {
-                "target": list(assessment.target),
-                "route_junction": list(
-                    assessment.first_contested_junction
-                ),
-                "ghost_arrival": assessment.junction_ghost_arrival,
-                "pacman_threat_arrival": (
-                    assessment.junction_pacman_arrival
-                ),
-                "contested": True,
-                "reason": assessment.reason,
-            }
-        else:
-            fields = {
-                "target": list(assessment.target),
-                "route_junction": None,
-                "ghost_arrival": assessment.ghost_arrival,
-                "pacman_threat_arrival": (
-                    assessment.pacman_threat_arrival
-                ),
-                "contested": assessment.contested,
-                "reason": assessment.reason,
-            }
-        self._diagnostics.write(
-            "interceptor_updated",
-            step_number=step_number,
-            **fields,
-        )
-
-    def _write_hot_unseen_exited(self, step_number, reason):
-        self._diagnostics.write(
-            "hot_unseen_exited",
-            step_number=step_number,
-            reason=reason,
-        )
-
-    def _write_follower_invalidated(self, update, step_number):
-        self._diagnostics.write(
-            "follower_invalidated",
-            step_number=step_number,
-            reason=update.reason,
-            previous_followers=[
-                follower.to_log_record()
-                for follower in update.previous_followers
-            ],
-            removals=update.removals_log_record(),
-        )
-
-    def _synchronize_route(self, my_position):
-        if self._active_target == my_position:
-            self._clear_route()
-            return
-        if self._active_path and self._active_path[0] == my_position:
-            self._active_path.pop(0)
-
-    def _clear_route(self):
-        self._active_target_kind = None
-        self._active_target = None
-        self._active_path = []
-
-    def _change_state(self, new_state, step_number, reason):
-        if self._state == new_state:
-            return
-        previous_state = self._state
-        self._state = new_state
-        self._diagnostics.write(
-            "state_changed",
-            step_number=step_number,
-            previous_state=previous_state,
-            state=new_state,
-            reason=reason,
-        )

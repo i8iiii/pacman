@@ -32,7 +32,7 @@
         "settings": {
           "foreground": "#66FF99",
           "fontStyle": "bold"
-        }        
+        }
       },
       {
         "scope": "entity.name.target.seek-agent-map",
@@ -44,9 +44,9 @@
       {
         "scope": "entity.name.pacman.seek-agent-map",
         "settings": {
-          "foreground": "#E06C75",
+          "foreground": "#FFFFFF",
           "background": "#D000FF",
-          "fontStyle": "bold"
+          "fontStyle": "bold underline"
         }
       },
       {
