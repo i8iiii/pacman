@@ -20,13 +20,15 @@ from .spatial import (
 class HideController:
     """Rotate across nearby hideouts with simple deterministic behavior.
 
-    Selection strategy: always prefer hideouts near the map border that is
-    closest to the ghost's current position.  No detour stops are made en
-    route — the ghost travels directly to each anchor hideout.
+    States:
+      SCOUT  – travelling to an anchor hideout.
+      HIDE   – holding at an anchor hideout while Pacman is NOT visible.
+      ESCAPE – Pacman is visible; flee immediately to a safe anchor.
     """
 
     SCOUT = "SCOUT"
     HIDE = "HIDE"
+    ESCAPE = "ESCAPE"
 
     HOLD_TURNS = 10
 
@@ -174,13 +176,19 @@ class HideController:
         self._last_step_number = step_number
         return move
 
+    # ------------------------------------------------------------------
+    # Core decision
+    # ------------------------------------------------------------------
+
     def _decide_move(self, current_map, my_position, enemy_position, step_number):
-        self._ensure_anchor(
-            current_map,
-            my_position,
-            enemy_position,
-            step_number,
-        )
+        # ESCAPE: Pacman is visible – immediately flee to a safe anchor.
+        if enemy_position is not None:
+            return self._escape_move(
+                current_map, my_position, enemy_position, step_number
+            )
+
+        # Pacman not visible – normal SCOUT / HIDE logic.
+        self._ensure_anchor(current_map, my_position, None, step_number)
 
         objective = self._anchor_hideout
         if objective is None:
@@ -190,16 +198,11 @@ class HideController:
 
         self._synchronize_route(my_position)
 
-        # If Pacman is visible, OR we are already holding here due to seeing Pacman,
-        # override the objective to our current position so we activate HIDE mode immediately!
-        if enemy_position is not None or self._holding_at == my_position:
-            objective = my_position
-
         if my_position == objective:
             return self._handle_objective_arrival(
                 current_map,
                 my_position,
-                enemy_position,
+                None,          # enemy not visible
                 step_number,
                 objective,
             )
@@ -216,6 +219,159 @@ class HideController:
         )
         self._state = self.SCOUT
         return move, reason
+
+    # ------------------------------------------------------------------
+    # ESCAPE logic
+    # ------------------------------------------------------------------
+
+    def _escape_move(self, current_map, my_position, enemy_position, step_number):
+        """Move away from Pacman by picking the hideout with the greatest
+        BFS distance from Pacman among all reachable candidates."""
+        self._holding_at = None
+        self._hold_remaining = 0
+        self._state = self.ESCAPE
+
+        escape_anchor = self._select_escape_anchor(
+            current_map, my_position, enemy_position
+        )
+
+        if escape_anchor is None:
+            self._diagnostics.write(
+                "escape_move",
+                step_number=step_number,
+                move=Move.STAY.name,
+                reason="no_escape_anchor",
+            )
+            return Move.STAY, "escape_no_anchor"
+
+        if escape_anchor == tuple(my_position):
+            self._anchor_hideout = escape_anchor
+            self._diagnostics.write(
+                "escape_move",
+                step_number=step_number,
+                move=Move.STAY.name,
+                reason="at_escape_anchor",
+            )
+            return Move.STAY, "escape_at_anchor"
+
+        target_plan = self._plan_route(current_map, my_position, escape_anchor)
+        if target_plan is None or not target_plan.path:
+            self._diagnostics.write(
+                "escape_move",
+                step_number=step_number,
+                move=Move.STAY.name,
+                reason="escape_no_route",
+            )
+            return Move.STAY, "escape_no_route"
+
+        desired_moves = route_moves(my_position, list(target_plan.path))
+        if not desired_moves:
+            return Move.STAY, "escape_no_moves"
+
+        self._anchor_hideout = escape_anchor
+        self._active_target_kind = target_plan.kind
+        self._active_target = target_plan.position
+        self._active_path = list(target_plan.path)
+
+        move = desired_moves[0]
+        self._diagnostics.write(
+            "escape_move",
+            step_number=step_number,
+            move=move.name,
+            anchor=list(escape_anchor),
+            reason="fleeing_pacman",
+        )
+        return move, "escape_fleeing_pacman"
+
+    def _select_escape_anchor(self, current_map, my_position, enemy_position):
+        """Pick the hideout candidate farthest from Pacman by BFS distance.
+
+        BFS distances are measured from *Pacman's* position so that the ghost
+        moves toward the cell that Pacman would take the longest to reach —
+        regardless of map-border proximity.
+        """
+        from collections import deque
+
+        # BFS from Pacman to get distance-from-Pacman for every cell.
+        pacman_dist = {}
+        queue = deque([enemy_position])
+        pacman_dist[enemy_position] = 0
+        while queue:
+            pos = queue.popleft()
+            for move in (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT):
+                dr, dc = move.value
+                npos = (pos[0] + dr, pos[1] + dc)
+                if npos in pacman_dist:
+                    continue
+                r, c = npos
+                rows, cols = current_map.shape
+                if not (0 <= r < rows and 0 <= c < cols):
+                    continue
+                if int(current_map[r, c]) == 1:
+                    continue
+                pacman_dist[npos] = pacman_dist[pos] + 1
+                queue.append(npos)
+
+        # BFS from ghost to know which cells are reachable.
+        ghost_dist = {}
+        queue = deque([my_position])
+        ghost_dist[my_position] = 0
+        while queue:
+            pos = queue.popleft()
+            for move in (Move.UP, Move.DOWN, Move.LEFT, Move.RIGHT):
+                dr, dc = move.value
+                npos = (pos[0] + dr, pos[1] + dc)
+                if npos in ghost_dist:
+                    continue
+                r, c = npos
+                rows, cols = current_map.shape
+                if not (0 <= r < rows and 0 <= c < cols):
+                    continue
+                if int(current_map[r, c]) == 1:
+                    continue
+                ghost_dist[npos] = ghost_dist[pos] + 1
+                queue.append(npos)
+
+        ghost_pac_dist = pacman_dist.get(my_position, 0)
+
+        best = None
+        best_score = None
+        for candidate in self._hideout_candidates:
+            pos = tuple(candidate.position)
+            if pos not in ghost_dist:
+                continue  # unreachable
+            pac_d = pacman_dist.get(pos, 0)
+            # Only consider cells that are farther from Pacman than the ghost
+            # currently is — moving toward Pacman is never an escape.
+            if pac_d <= ghost_pac_dist:
+                continue
+            ghost_d = ghost_dist[pos]
+            # Primary: maximise Pacman's distance to the target.
+            # Secondary: minimise ghost's travel distance (reach it faster).
+            score = (pac_d, -ghost_d)
+            if best_score is None or score > best_score:
+                best_score = score
+                best = pos
+
+        # Fallback: if all candidates are closer to Pacman than the ghost,
+        # just pick the one that maximises Pacman distance regardless.
+        if best is None:
+            for candidate in self._hideout_candidates:
+                pos = tuple(candidate.position)
+                if pos not in ghost_dist:
+                    continue
+                pac_d = pacman_dist.get(pos, 0)
+                ghost_d = ghost_dist[pos]
+                score = (pac_d, -ghost_d)
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best = pos
+
+        return best
+
+    # ------------------------------------------------------------------
+    # HIDE / hold logic (Pacman not visible)
+    # ------------------------------------------------------------------
 
     def _handle_objective_arrival(
         self,
@@ -241,7 +397,7 @@ class HideController:
             self._state = self.HIDE
             return Move.STAY, "hideout_hold"
 
-        # Hold complete — rotate to a new anchor, excluding the current one.
+        # Hold complete – rotate to a new anchor.
         self._previous_anchor_hideout = self._anchor_hideout
         banned = (
             {self._previous_anchor_hideout}
@@ -276,6 +432,10 @@ class HideController:
         self._state = self.SCOUT
         return Move.STAY, "rotate_anchor_after_hold"
 
+    # ------------------------------------------------------------------
+    # Anchor management
+    # ------------------------------------------------------------------
+
     def _ensure_anchor(
         self,
         current_map,
@@ -297,7 +457,6 @@ class HideController:
             enemy_position,
             banned=banned,
         )
-        # If the ban excluded every option, retry without restrictions.
         if self._anchor_hideout is None and self._previous_anchor_hideout is not None:
             self._anchor_hideout = self._select_ranked_hideout(
                 current_map,
@@ -341,6 +500,10 @@ class HideController:
                 observation_radius=self._observation_radius,
             )
         return None if not ranked else tuple(ranked[0].position)
+
+    # ------------------------------------------------------------------
+    # Routing helpers
+    # ------------------------------------------------------------------
 
     def _plan_route(self, current_map, my_position, target):
         decision = concealment_route(
@@ -404,7 +567,7 @@ class HideController:
             return
         if tuple(my_position) in self._active_path:
             index = self._active_path.index(tuple(my_position))
-            self._active_path = self._active_path[index + 1 :]
+            self._active_path = self._active_path[index + 1:]
 
     def _clear_route(self):
         self._active_target_kind = None
