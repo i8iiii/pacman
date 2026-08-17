@@ -1,10 +1,17 @@
 """Simplified Hide controller: rotate closest hideouts with concealed routing."""
 
+from collections import deque
 from pathlib import Path
 from time import perf_counter
 
 from environment import Move
 
+from .belief import (
+    UNREACHABLE,
+    PacmanBelief,
+    pacman_turn_distances,
+    turns_until_observed,
+)
 from .concealment import rank_hideouts, scan_hideouts, visibility_footprints
 from .diagnostics import DIAGNOSTICS_ENABLED, JsonlDiagnostics, MapDiagnostics
 from .spatial import (
@@ -13,7 +20,6 @@ from .spatial import (
     geometry_summary,
     route_is_structural,
     route_moves,
-    structural_shortest_paths,
 )
 
 
@@ -30,7 +36,24 @@ class HideController:
     HIDE = "HIDE"
     ESCAPE = "ESCAPE"
 
-    HOLD_TURNS = 10
+    # Leave a hideout once Pacman could be this few turns from seeing it.
+    # Vacating before the sighting is what matters: a hideout is usually a
+    # dead-end pocket, so escaping after being spotted rarely works.
+    LEAVE_THREAT_TURNS = 4
+
+    # A belief is only evidence while it is concentrated.  Once it has expanded
+    # past this share of the open map it no longer says where Pacman is, only
+    # that he exists - reacting to it would make the Ghost flee at random and
+    # never hold a hideout at all.
+    BELIEF_INFORMATIVE_FRACTION = 0.25
+
+    # Ranking cost grows with the belief size; past this the belief carries
+    # little information anyway, so rank on structure alone.
+    BELIEF_RANKING_LIMIT = 60
+
+    # How many recently-used anchors to exclude, so rotation cannot ping-pong
+    # between the same two hideouts and get caught in the transit between them.
+    ANCHOR_HISTORY = 4
 
     def __init__(
         self,
@@ -70,12 +93,19 @@ class HideController:
 
         self._visibility_footprints = {}
         self._hideout_candidates = ()
+        self._open_cell_count = 1
 
         self._anchor_hideout = None
         self._previous_anchor_hideout = None
+        self._recent_anchors = deque(maxlen=self.ANCHOR_HISTORY)
 
         self._holding_at = None
-        self._hold_remaining = 0
+        self._hold_turns = 0
+
+        self._belief = PacmanBelief(
+            pacman_speed=self._pacman_speed,
+            observation_radius=self._observation_radius,
+        )
 
         self._active_target_kind = None
         self._active_target = None
@@ -105,11 +135,15 @@ class HideController:
             else tuple(int(value) for value in enemy_position)
         )
 
+        current_map = map_state.copy()
+
         new_match = self._is_new_match(map_state, step_number)
         if new_match:
             self._start_match(map_state.shape, my_position, step_number)
+            self._belief.reset(current_map, my_position)
 
-        current_map = map_state.copy()
+        self._belief.update(current_map, my_position, enemy_position)
+
         self._diagnostics.write(
             "geometry_summary",
             step_number=step_number,
@@ -128,6 +162,7 @@ class HideController:
                 current_map,
                 self._observation_radius,
             )
+            self._open_cell_count = max(1, len(self._visibility_footprints))
             self._hideout_candidates = scan_hideouts(
                 current_map,
                 observation_radius=self._observation_radius,
@@ -170,7 +205,8 @@ class HideController:
                 if self._anchor_hideout is None
                 else list(self._anchor_hideout)
             ),
-            hold_remaining=self._hold_remaining,
+            hold_turns=self._hold_turns,
+            belief_size=len(self._belief.positions),
         )
 
         self._last_step_number = step_number
@@ -208,7 +244,7 @@ class HideController:
             )
 
         self._holding_at = None
-        self._hold_remaining = 0
+        self._hold_turns = 0
 
         target_plan = self._plan_route(current_map, my_position, objective)
         move, reason = self._scout_move(
@@ -228,7 +264,7 @@ class HideController:
         """Move away from Pacman by picking the hideout with the greatest
         BFS distance from Pacman among all reachable candidates."""
         self._holding_at = None
-        self._hold_remaining = 0
+        self._hold_turns = 0
         self._state = self.ESCAPE
 
         escape_anchor = self._select_escape_anchor(
@@ -383,40 +419,47 @@ class HideController:
     ):
         if self._holding_at != objective:
             self._holding_at = objective
-            self._hold_remaining = self.HOLD_TURNS
+            self._hold_turns = 0
             self._diagnostics.write(
                 "hold_started",
                 step_number=step_number,
                 hideout=list(objective),
-                hold_turns=self.HOLD_TURNS,
             )
 
-        if self._hold_remaining > 0:
-            self._hold_remaining -= 1
+        # Hold for as long as the hideout is genuinely cold.  A fixed timer
+        # either leaves a safe cell for no reason or sits in a cell Pacman is
+        # already walking towards; the belief tells us which case we are in.
+        threat_turns = self._turns_until_observed(current_map, my_position)
+        if threat_turns > self.LEAVE_THREAT_TURNS:
+            self._hold_turns += 1
             self._clear_route()
             self._state = self.HIDE
+            self._diagnostics.write(
+                "hideout_hold",
+                step_number=step_number,
+                threat_turns=threat_turns,
+                hold_turns=self._hold_turns,
+            )
             return Move.STAY, "hideout_hold"
 
-        # Hold complete – rotate to a new anchor.
+        # Pacman could be about to look here – vacate before that happens.
         self._previous_anchor_hideout = self._anchor_hideout
-        banned = (
-            {self._previous_anchor_hideout}
-            if self._previous_anchor_hideout is not None
-            else set()
-        )
+        if self._anchor_hideout is not None:
+            self._recent_anchors.append(self._anchor_hideout)
         self._anchor_hideout = self._select_ranked_hideout(
             current_map,
             my_position,
             enemy_position,
-            banned=banned,
+            banned=set(self._recent_anchors),
         )
         self._holding_at = None
-        self._hold_remaining = 0
+        self._hold_turns = 0
         self._clear_route()
 
         self._diagnostics.write(
             "anchor_rotated",
             step_number=step_number,
+            threat_turns=threat_turns,
             previous=(
                 None
                 if self._previous_anchor_hideout is None
@@ -430,7 +473,22 @@ class HideController:
         )
 
         self._state = self.SCOUT
-        return Move.STAY, "rotate_anchor_after_hold"
+        if self._anchor_hideout is None or self._anchor_hideout == my_position:
+            return Move.STAY, "rotate_anchor_no_target"
+
+        # Start moving on the same turn the threat was detected; standing still
+        # here would spend the warning we just bought.
+        target_plan = self._plan_route(
+            current_map,
+            my_position,
+            self._anchor_hideout,
+        )
+        return self._scout_move(
+            current_map,
+            my_position,
+            target_plan,
+            step_number,
+        )
 
     # ------------------------------------------------------------------
     # Anchor management
@@ -483,11 +541,13 @@ class HideController:
         banned,
     ):
         effective_ban = [p for p in banned if p is not None]
+        belief = self._ranking_belief()
         ranked = rank_hideouts(
             current_map,
             my_position,
             self._hideout_candidates,
             enemy_position=enemy_position,
+            possible_enemy_positions=belief,
             excluded_positions=effective_ban,
             observation_radius=self._observation_radius,
         )
@@ -497,9 +557,41 @@ class HideController:
                 my_position,
                 self._hideout_candidates,
                 enemy_position=enemy_position,
+                possible_enemy_positions=belief,
                 observation_radius=self._observation_radius,
             )
         return None if not ranked else tuple(ranked[0].position)
+
+    def _belief_is_informative(self, belief):
+        limit = max(1, int(self._open_cell_count * self.BELIEF_INFORMATIVE_FRACTION))
+        return len(belief) <= limit
+
+    def _ranking_belief(self):
+        """Belief set to rank against, or empty when it is too diffuse to help."""
+        positions = self._belief.positions
+        if not positions or len(positions) > self.BELIEF_RANKING_LIMIT:
+            return ()
+        return tuple(sorted(positions))
+
+    def _turns_until_observed(self, current_map, position):
+        """Pacman turns until he could see ``position``, given the belief.
+
+        Returns ``UNREACHABLE`` when the belief is too diffuse to be evidence,
+        so a blind Ghost camps in a deep pocket instead of wandering.
+        """
+        belief = self._belief.positions
+        if not belief or not self._belief_is_informative(belief):
+            return UNREACHABLE
+        threat = pacman_turn_distances(
+            current_map,
+            belief,
+            pacman_speed=self._pacman_speed,
+        )
+        observers = self._visibility_footprints.get(
+            tuple(position),
+            (tuple(position),),
+        )
+        return turns_until_observed(threat, observers)
 
     # ------------------------------------------------------------------
     # Routing helpers
@@ -542,9 +634,10 @@ class HideController:
 
         self._anchor_hideout = None
         self._previous_anchor_hideout = None
+        self._recent_anchors.clear()
 
         self._holding_at = None
-        self._hold_remaining = 0
+        self._hold_turns = 0
 
         self._clear_route()
 

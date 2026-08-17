@@ -160,7 +160,6 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 
 
-
 @dataclass(frozen=True)
 class RouteTarget:
     """A reachable no-sight target and its structural route."""
@@ -257,55 +256,6 @@ def _shortest_route_fallback(map_state, start, target):
     )
 
 
-def choose_no_sight_target(
-    map_state,
-    start,
-    safe_campsites,
-    preferred_position=None,
-):
-    """Select a reachable safe campsite, preserving an existing selection."""
-    distances, parents = structural_shortest_paths(map_state, start)
-    reachable_campsites = [
-        campsite
-        for campsite in safe_campsites
-        if campsite.position in distances
-    ]
-
-    if not reachable_campsites:
-        return None, None
-
-    preferred_position = (
-        None if preferred_position is None else tuple(preferred_position)
-    )
-    selected = next(
-        (
-            campsite
-            for campsite in reachable_campsites
-            if campsite.position == preferred_position
-        ),
-        None,
-    )
-    if selected is None:
-        selected = max(
-            reachable_campsites,
-            key=lambda campsite: (
-                campsite.score,
-                -distances[campsite.position],
-                -campsite.position[0],
-                -campsite.position[1],
-            ),
-        )
-
-    return (
-        RouteTarget(
-            kind="safe_campsite",
-            position=selected.position,
-            path=tuple(reconstruct_path(parents, selected.position)),
-        ),
-        selected,
-    )
-
-
 def structural_shortest_paths(map_state, start):
     """Return BFS paths through every non-wall cell, including fog."""
     start = tuple(start)
@@ -380,29 +330,3 @@ def route_is_structural(map_state, start, path):
             return False
         current = position
     return True
-
-
-"""Spawn-relative vertical band helpers."""
-
-
-def vertical_band(position, rows):
-    """Return the proportional vertical band containing position."""
-
-    row = int(position[0])
-    rows = max(1, int(rows))
-    scaled = 3 * row
-    if scaled < rows:
-        return "top"
-    if scaled < 2 * rows:
-        return "middle"
-    return "bottom"
-
-
-def opposite_outer_band(ghost_spawn, rows):
-    """Return the outer third opposite the original spawn half."""
-
-    return (
-        "bottom"
-        if int(ghost_spawn[0]) < int(rows) / 2.0
-        else "top"
-    )
