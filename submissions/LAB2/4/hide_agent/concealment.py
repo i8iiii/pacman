@@ -37,8 +37,6 @@ class HideoutCandidate:
     inspection_depth: int = 0
     visibility_footprint: int = 0
     exposed_axes: int = 0
-    spawn_discovery_distance: int = 0
-    opposite_vertical_band: bool = False
 
     def to_log_record(self) -> dict:
         return {
@@ -51,8 +49,6 @@ class HideoutCandidate:
             "inspection_depth": self.inspection_depth,
             "visibility_footprint": self.visibility_footprint,
             "exposed_axes": self.exposed_axes,
-            "spawn_discovery_distance": self.spawn_discovery_distance,
-            "opposite_vertical_band": self.opposite_vertical_band,
         }
 
 
@@ -91,7 +87,6 @@ def visibility_footprints(
 def scan_hideouts(
     map_state: Sequence[Sequence[int]],
     observation_radius: int,
-    pacman_spawn: Optional[Position] = None,
     ghost_spawn: Optional[Position] = None,
     pacman_speed: int = 2,
     footprints=None,
@@ -106,21 +101,6 @@ def scan_hideouts(
     adjacency = _adjacency(map_state)
     if footprints is None:
         footprints = visibility_footprints(map_state, observation_radius)
-    inferred_pacman_starts = _pacman_start_positions(
-        map_state,
-        adjacency,
-        pacman_spawn,
-        ghost_spawn,
-    )
-    spawn_distances = (
-        pacman_turn_distances(
-            map_state,
-            inferred_pacman_starts,
-            pacman_speed=pacman_speed,
-        )
-        if inferred_pacman_starts
-        else {}
-    )
     entrance_distance_cache = {}
     junctions = tuple(
         sorted(position for position, neighbors in adjacency.items() if len(neighbors) >= 3)
@@ -178,17 +158,6 @@ def scan_hideouts(
             entrance_distance_cache.get(entrance, {}),
             footprints[position],
         )
-        spawn_discovery_distance = _observer_distance(
-            spawn_distances,
-            footprints[position],
-        )
-        opposite_vertical_band = _is_opposite_vertical_band(
-            map_state,
-            position,
-            pacman_spawn,
-            ghost_spawn,
-        )
-        
         has_vertical = any(neighbor[0] != position[0] for neighbor in adjacency[position])
         has_horizontal = any(neighbor[1] != position[1] for neighbor in adjacency[position])
         exposed_axes = int(has_vertical) + int(has_horizontal)
@@ -203,8 +172,6 @@ def scan_hideouts(
             inspection_depth=inspection_depth,
             visibility_footprint=len(footprints[position]),
             exposed_axes=exposed_axes,
-            spawn_discovery_distance=spawn_discovery_distance,
-            opposite_vertical_band=opposite_vertical_band,
         )
         all_candidates.append(candidate)
         if is_strategic_hideout(candidate):
@@ -457,48 +424,4 @@ def _observer_distance(
     return min(reachable) if reachable else 10**9
 
 
-def _is_opposite_vertical_band(
-    map_state,
-    position: Position,
-    pacman_spawn: Optional[Position],
-    ghost_spawn: Optional[Position],
-) -> bool:
-    middle = map_state.shape[0] / 2.0
-    candidate_top = position[0] < middle
-    if pacman_spawn is None:
-        if ghost_spawn is None:
-            return False
-        pacman_top = not (ghost_spawn[0] < middle)
-    else:
-        pacman_top = pacman_spawn[0] < middle
-    if candidate_top == pacman_top:
-        return False
-    if ghost_spawn is None:
-        return True
-    return candidate_top == (ghost_spawn[0] < middle)
 
-
-def _pacman_start_positions(
-    map_state,
-    adjacency: Mapping[Position, Set[Position]],
-    pacman_spawn: Optional[Position],
-    ghost_spawn: Optional[Position],
-) -> Tuple[Position, ...]:
-    if pacman_spawn is not None:
-        return (tuple(pacman_spawn),)
-    if ghost_spawn is None:
-        return ()
-
-    rows = map_state.shape[0]
-    ghost_starts_top = ghost_spawn[0] < rows / 2.0
-    if ghost_starts_top:
-        lower_bound = rows * 0.6
-        inferred = [
-            position for position in adjacency if position[0] >= lower_bound
-        ]
-    else:
-        upper_bound = rows * 0.4
-        inferred = [
-            position for position in adjacency if position[0] < upper_bound
-        ]
-    return tuple(sorted(inferred))

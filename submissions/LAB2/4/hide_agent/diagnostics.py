@@ -80,15 +80,6 @@ class MapDiagnostics:
         current_map,
         hideout_candidates=(),
         selected_hideout=None,
-        compromised_hideouts=(),
-        pacman_belief=(),
-        road_visibility=(),
-        road_excluded_hideouts=(),
-        road_cycle=None,
-        active_road_stage=None,
-        active_road_ids=(),
-        active_road_excluded_cells=(),
-        migration_state=None,
     ):
         if not self.enabled:
             return False
@@ -112,62 +103,6 @@ class MapDiagnostics:
                 if selected_hideout is None
                 else list(selected_hideout)
             )
-            compromised_positions = [
-                list(position)
-                for position in sorted(
-                    {tuple(position) for position in compromised_hideouts}
-                )
-            ]
-            belief_positions = [
-                list(position)
-                for position in sorted(
-                    {tuple(position) for position in pacman_belief}
-                )
-            ]
-            road_records = [
-                record.to_log_record()
-                for record in road_visibility
-            ]
-            road_excluded_positions = [
-                list(position)
-                for position in sorted(
-                    {
-                        tuple(
-                            candidate.position
-                            if hasattr(candidate, "position")
-                            else candidate
-                        )
-                        for candidate in road_excluded_hideouts
-                    }
-                )
-            ]
-            cycle_record = (
-                None
-                if road_cycle is None
-                else road_cycle.to_log_record()
-            )
-            stage_record = (
-                None
-                if active_road_stage is None
-                else active_road_stage.to_log_record()
-            )
-            active_ids = [
-                int(road_id) for road_id in active_road_ids
-            ]
-            active_excluded_positions = [
-                list(position)
-                for position in sorted(
-                    {
-                        tuple(position)
-                        for position in active_road_excluded_cells
-                    }
-                )
-            ]
-            migration_record = (
-                None
-                if migration_state is None
-                else dict(migration_state)
-            )
 
             human_snapshot = self._human_snapshot(
                 step_number,
@@ -178,15 +113,6 @@ class MapDiagnostics:
                 total_cells,
                 candidate_records,
                 selected_position,
-                compromised_positions,
-                belief_positions,
-                road_records,
-                road_excluded_positions,
-                cycle_record,
-                stage_record,
-                active_ids,
-                active_excluded_positions,
-                migration_record,
             )
             machine_snapshot = {
                 "event": "map_snapshot",
@@ -199,17 +125,6 @@ class MapDiagnostics:
                 "map": current_map.astype(int).tolist(),
                 "hideout_candidates": candidate_records,
                 "selected_hideout": selected_position,
-                "compromised_hideouts": compromised_positions,
-                "pacman_belief": belief_positions,
-                "road_visibility": road_records,
-                "road_excluded_hideouts": road_excluded_positions,
-                "road_cycle": cycle_record,
-                "active_road_stage": stage_record,
-                "active_road_ids": active_ids,
-                "active_road_excluded_cells": (
-                    active_excluded_positions
-                ),
-                "migration": migration_record,
             }
 
             with self.text_path.open("a", encoding="utf-8") as text_file:
@@ -233,15 +148,6 @@ class MapDiagnostics:
         total_cells,
         hideout_candidates,
         selected_hideout,
-        compromised_hideouts,
-        pacman_belief,
-        road_visibility,
-        road_excluded_hideouts,
-        road_cycle,
-        active_road_stage,
-        active_road_ids,
-        active_road_excluded_cells,
-        migration_state,
     ):
         rows, cols = current_map.shape
         lines = [
@@ -266,30 +172,9 @@ class MapDiagnostics:
                 "",
                 self._hideout_lines(hideout_candidates),
                 self._selected_hideout_line(selected_hideout),
-                self._position_list("Compromised hideouts", compromised_hideouts),
-                self._position_list("Pacman belief", pacman_belief),
-                self._road_visibility_lines(road_visibility),
-                self._position_list(
-                    "Road-excluded hideouts",
-                    road_excluded_hideouts,
-                ),
-                self._road_cycle_stage_line(active_road_stage),
-                self._road_ids_line(active_road_ids),
-                self._position_list(
-                    "Active road excluded cells",
-                    active_road_excluded_cells,
-                ),
-                self._migration_line(migration_state),
             ]
         )
         return "\n".join(lines) + "\n\n"
-
-    @staticmethod
-    def _position_list(label, positions):
-        rendered = ", ".join(
-            f"({position[0]}, {position[1]})" for position in positions
-        )
-        return f"{label} ({len(positions)}): {rendered or 'none'}"
 
     @staticmethod
     def _selected_hideout_line(selected_hideout):
@@ -298,47 +183,6 @@ class MapDiagnostics:
 
         row, column = selected_hideout
         return f"Selected hideout: ({row}, {column})"
-
-    @staticmethod
-    def _road_cycle_stage_line(stage):
-        if stage is None:
-            return "Road cycle stage: none"
-        return (
-            "Road cycle stage: "
-            f"{stage['index']} {stage['label']}"
-        )
-
-    @staticmethod
-    def _road_ids_line(road_ids):
-        rendered = ", ".join(str(road_id) for road_id in road_ids)
-        return (
-            f"Active road IDs ({len(road_ids)}): "
-            f"{rendered or 'none'}"
-        )
-
-    @staticmethod
-    def _migration_line(state):
-        if state is None:
-            return "Hideout migration: unavailable"
-        waypoint = (
-            "none"
-            if state["waypoint"] is None
-            else (
-                f"({state['waypoint'][0]}, "
-                f"{state['waypoint'][1]})"
-            )
-        )
-        return (
-            "Hideout migration: "
-            f"phase={state['phase']} "
-            f"middle_holds={state['middle_hold_turns']} "
-            f"opposite_holds={state['opposite_hold_turns']} "
-            f"waypoint={waypoint} "
-            f"spawn={state['spawn_band']} "
-            f"destination={state['destination_band']} "
-            f"junction_distance={state['junction_distance']} "
-            f"blocked={state['blocked_reason']}"
-        )
 
     @staticmethod
     def _hideout_lines(candidates):
@@ -357,30 +201,6 @@ class MapDiagnostics:
                 f"footprint={candidate['visibility_footprint']} "
                 f"backtrack={candidate['must_backtrack']} "
                 f"spawn={candidate['spawn_discovery_distance']}"
-            )
-        if len(lines) == 1:
-            lines.append("  none")
-        return "\n".join(lines)
-
-    @classmethod
-    def _road_visibility_lines(cls, records):
-        approach_records = [
-            record
-            for record in records
-            if record["is_approach"]
-        ]
-        lines = [
-            f"Approach road visibility ({len(approach_records)}):"
-        ]
-        for record in approach_records:
-            lines.append(
-                "  "
-                f"road {record['road_id']} "
-                f"visible ({len(record['visible_cells'])}): "
-                + ", ".join(
-                    f"({position[0]}, {position[1]})"
-                    for position in record["visible_cells"]
-                )
             )
         if len(lines) == 1:
             lines.append("  none")

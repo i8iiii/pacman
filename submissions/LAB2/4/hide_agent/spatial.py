@@ -319,14 +319,4 @@ def move_between(start, end):
     return None
 
 
-def route_is_structural(map_state, start, path):
-    """Return whether a path is adjacent and entirely non-wall."""
-    current = tuple(start)
-    for position in path:
-        position = tuple(position)
-        if move_between(current, position) is None:
-            return False
-        if not is_structurally_traversable(map_state, position):
-            return False
-        current = position
-    return True
+
